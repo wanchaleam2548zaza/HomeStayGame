@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Empire: Evolution 💰</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #5865F2;
+            --secondary: #d4af37;
+            /* Gold */
+            --bg: #0b0c0d;
+            --card: rgba(28, 30, 32, 0.7);
+            --text-main: #ffffff;
+            --text-dim: #a0a0a0;
+            --accent: #00ff88;
+            /* Neon Green */
+            --danger: #ff4757;
+            --max-width: 500px;
+            --shadow-gold: 0 0 15px rgba(212, 175, 55, 0.3);
+        }
+
+        body {
+            font-family: 'Kanit', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background-image: radial-gradient(circle at top right, #1a1c1e, #0b0c0d);
+            overflow-x: hidden;
+        }
+
+        #game-screen {
+            width: 100%;
+            max-width: var(--max-width);
+            min-height: 100vh;
+            padding-bottom: 110px;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        /* --- UI: Credit Card --- */
+        .credit-card {
+            width: 90%;
+            aspect-ratio: 1.6 / 1;
+            margin: 25px auto;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            padding: 25px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .credit-card::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        #points {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin: 5px 0;
+            color: #fff;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        /* --- [NEW] Competitor Info UI --- */
+        .competitor-info {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px border rgba(255, 255, 255, 0.05);
+        }
+
+        .comp-tag {
+            font-size: 0.65rem;
+            background: rgba(255, 71, 87, 0.15);
+            color: var(--danger);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        /* --- Tabs & Animations --- */
+        .tab-content {
+            display: none;
+            padding: 0 20px;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .category-title {
+            margin: 25px 0 15px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--secondary);
+            border-left: 4px solid var(--secondary);
+            padding-left: 12px;
+        }
+
+        /* --- Assets & Shop Grid --- */
+        .assets-grid,
+        .shop-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding-bottom: 20px;
+        }
+
+        /* --- Asset Item (ธุรกิจที่มี) --- */
+        .asset-item {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 15px 10px;
+            text-align: center;
+            transition: 0.3s;
+        }
+
+        .asset-item:hover {
+            transform: translateY(-5px);
+            border-color: var(--secondary);
+        }
+
+        /* --- [NEW] Lottery UI Improvements --- */
+        #lottery-info-display {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 15px;
+            padding: 12px;
+            margin-top: 10px;
+            border: 1px solid rgba(142, 68, 173, 0.3);
+        }
+
+        .lottery-table {
+            width: 100%;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            border-collapse: collapse;
+        }
+
+        .lottery-table tr:hover {
+            color: #fff;
+        }
+
+        .lottery-table td {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* --- Navigation --- */
+        .nav {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 92%;
+            max-width: 450px;
+            background: rgba(20, 22, 24, 0.95);
+            backdrop-filter: blur(20px);
+            display: flex;
+            justify-content: space-around;
+            padding: 12px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .nav-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .nav-btn.active {
+            color: var(--secondary);
+            transform: translateY(-2px);
+        }
+
+        /* --- Modal & Result --- */
+        /* --- [FIXED] Modal Center Screen --- */
+.modal {
+    display: none; /* ซ่อนไว้ก่อน */
+    position: fixed; /* ล็อกตำแหน่งไว้กับหน้าจอ */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85); /* พื้นหลังดำโปร่งแสง */
+    backdrop-filter: blur(8px); /* ทำพื้นหลังเบลอ */
+    z-index: 9999; /* ให้ค่าสูงที่สุดเพื่อให้ทับทุกอย่างรวมถึงเมนู */
+    justify-content: center; /* จัดกลางแนวนอน */
+    align-items: center; /* จัดกลางแนวตั้ง */
+}
+
+.modal .asset-item {
+    background: #1c1e20;
+    border: 2px solid var(--secondary);
+    border-radius: 24px;
+    padding: 40px 20px;
+    width: 85%;
+    max-width: 350px;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+    /* เอา Margin-top/bottom ออกเพื่อให้มันอยู่กลางจอจริงๆ */
+    margin: 0; 
+}
+
+        /* --- Utils --- */
+        .text-accent {
+            color: var(--accent);
+        }
+
+        .text-danger {
+            color: var(--danger);
+        }
+
+        .text-gold {
+            color: var(--secondary);
+        }
+
+        /* --- [FIXED] Leaderboard UI --- */
+        #leaderboard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: 0.3s;
+        }
+
+        .leaderboard-item span:first-child {
+            font-weight: bold;
+            color: var(--secondary);
+            width: 30px;
+            font-size: 1.1rem;
+        }
+
+        .leaderboard-item strong {
+            flex-grow: 1;
+            margin-left: 10px;
+        }
+
+        /* --- [FIXED] Buttons & Forms --- */
+        .buy-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: 'Kanit', sans-serif;
+            margin-top: 5px;
+        }
+
+        .buy-btn:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .buy-btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn-danger {
+            background: var(--danger) !important;
+            color: white;
+        }
+
+        /* --- Shop Card Layout --- */
+        .biz-card {
+            background: var(--card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: 0.3s;
+        }
+
+        .biz-info {
+            flex-grow: 1;
+        }
+
+        .biz-info strong {
+            font-size: 0.95rem;
+            display: block;
+        }
+
+        /* --- Starter Screen Grid --- */
+        #starter-screen .biz-card {
+            flex-direction: column;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="starter-screen"
+        style="position:fixed; inset:0; background:var(--bg); z-index:9999; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
+        <h2 style="color: var(--secondary); margin-bottom: 5px;">เลือกธุรกิจเริ่มต้น</h2>
+        <p style="color: var(--text-dim); margin-bottom: 25px; font-size: 0.9rem;">เลือกรากฐานของอาณาจักรคุณ (ฟรี)</p>
+
+        <div style="display: grid; grid-template-columns: 1fr; gap: 15px; width: 100%; max-width: 300px;">
+            <div class="biz-card" onclick="chooseStarter('coffee')" style="cursor:pointer;">
+                <span style="font-size: 2.5rem;">☕</span>
+                <h3>ร้านกาแฟ</h3>
+                <p style="color: var(--accent);">รายได้พื้นฐาน: +฿5/s</p>
+            </div>
+            <div class="biz-card" onclick="chooseStarter('repair')" style="cursor:pointer;">
+                <span style="font-size: 2.5rem;">🛠️</span>
+                <h3>ร้านซ่อมมือถือ</h3>
+                <p style="color: var(--accent);">รายได้พื้นฐาน: +฿5/s</p>
+            </div>
+            <div class="biz-card" onclick="chooseStarter('vending')" style="cursor:pointer;">
+                <span style="font-size: 2.5rem;">🥤</span>
+                <h3>ตู้น้ำหยอดเหรียญ</h3>
+                <p style="color: var(--accent);">รายได้พื้นฐาน: +฿5/s</p>
+            </div>
+        </div>
+        <p style="margin-top:20px; font-size:0.7rem; color:var(--danger);">*หมายเหตุ: รายได้จริงอาจลดลงหากมีคู่แข่ง</p>
+    </div>
+
+    <div id="game-screen">
+        <div class="credit-card">
+            <div class="card-label">TOTAL CAPITAL | ผู้ลงทุน: <span id="display-name">...</span></div>
+            <div id="points">฿0</div>
+            <div class="profit-text" id="pps">Profit: +฿0/s</div>
+            <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-top: 5px;">*คำนวณคู่แข่งแล้ว</div>
+        </div>
+
+        <div id="tab-main" class="tab-content active">
+            <div class="category-title">อาณาจักรของคุณ</div>
+            <div id="active-assets-list" class="assets-grid">
+                </div>
+        </div>
+
+        <div id="tab-shop" class="tab-content">
+            <div class="category-title">การลงทุนระดับมหาเศรษฐี</div>
+            <div class="shop-grid">
+                <div class="biz-card">
+                    <span style="font-size: 2rem;">🚚</span>
+                    <div class="biz-info">
+                        <strong>กองรถบรรทุก</strong><br>
+                        <small style="color:var(--accent)">ฐาน: +฿150/s</small>
+                    </div>
+                    <button id="btn-truck" onclick="buyUpgrade('truck')" class="buy-btn">฿5,000</button>
+                </div>
+                <div class="biz-card">
+                    <span style="font-size: 2rem;">🧺</span>
+                    <div class="biz-info">
+                        <strong>สะดวกซัก</strong><br>
+                        <small style="color:var(--accent)">ฐาน: +฿850/s</small>
+                    </div>
+                    <button id="btn-laundry" onclick="buyUpgrade('laundry')" class="buy-btn">฿25,000</button>
+                </div>
+                <div class="biz-card">
+                    <span style="font-size: 2rem;">🏨</span>
+                    <div class="biz-info">
+                        <strong>โรงแรม 5 ดาว</strong><br>
+                        <small style="color:var(--accent)">ฐาน: +฿5,500/s</small>
+                    </div>
+                    <button id="btn-hotel" onclick="buyUpgrade('hotel')" class="buy-btn">฿150,000</button>
+                </div>
+                <div class="biz-card">
+                    <span style="font-size: 2rem;">🏭</span>
+                    <div class="biz-info">
+                        <strong>โรงงานผลิตชิป</strong><br>
+                        <small style="color:var(--accent)">ฐาน: +฿42,000/s</small>
+                    </div>
+                    <button id="btn-factory" onclick="buyUpgrade('factory')" class="buy-btn">฿1,000,000</button>
+                </div>
+            </div>
+
+            <div class="category-title">สลากเศรษฐี</div>
+            <div class="biz-card" style="flex-direction: column; background: rgba(142, 68, 173, 0.1); border-color: #8e44ad; padding: 20px;">
+                <div style="text-align: center; width: 100%;">
+                    <span style="font-size: 2.5rem;">🎫</span><br>
+                    <strong id="lottery-tier-name" style="font-size: 1.2rem; display: block; margin-top: 5px;">เลือกประเภทบัตร</strong>
+                    <div id="lottery-info-display" style="margin-top: 15px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; min-height: 80px;">
+                        <p style="color: var(--text-dim); font-size: 0.85rem; margin: 0;">เอาเมาส์วางที่ปุ่มเพื่อดูรายละเอียด</p>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px; width: 100%;">
+                    <button class="buy-btn" id="btn-tier1" onclick="openLottery('tier1')" onmouseover="showLotteryInfo('tier1')" style="background:#C0C0C0; color:black; font-weight:bold;">ซื้อบัตรเสี่ยงโชค (฿500)</button>
+                    <button class="buy-btn" id="btn-tier2" onclick="openLottery('tier2')" onmouseover="showLotteryInfo('tier2')" style="background:#D4AF37; color:black; font-weight:bold;">ซื้อบัตรนักลงทุน (฿50,000)</button>
+                    <button class="buy-btn" id="btn-tier3" onclick="openLottery('tier3')" onmouseover="showLotteryInfo('tier3')" style="background:#B9F2FF; color:black; font-weight:bold;">ซื้อบัตรมหาเศรษฐี (฿5,000,000)</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-leaderboard" class="tab-content">
+            <div class="category-title">10 อันดับมหาเศรษฐี</div>
+            <div id="leaderboard-list">
+                </div>
+        </div>
+
+        <div id="tab-settings" class="tab-content">
+            <div class="category-title">ตั้งค่าระบบ</div>
+            <div class="biz-card" style="padding: 20px; flex-direction: column; gap: 15px;">
+                <button onclick="confirmReset()" class="buy-btn" style="background: var(--danger); width: 100%;">เริ่มต้นใหม่ทั้งหมด (Reset)</button>
+                <p style="font-size: 0.8rem; color: var(--text-dim);">การ Reset จะล้างข้อมูลธุรกิจและแต้มทั้งหมดของคุณ</p>
+            </div>
+        </div>
+
+        <nav class="nav">
+            <button class="nav-btn active" onclick="switchTab('tab-main', this)">📊<br>หน้าแรก</button>
+            <button class="nav-btn" onclick="switchTab('tab-shop', this)">🏢<br>ลงทุน</button>
+            <button class="nav-btn" onclick="switchTab('tab-leaderboard', this)">🏆<br>อันดับ</button>
+            <button class="nav-btn" onclick="switchTab('tab-settings', this)">⚙️<br>ตั้งค่า</button>
+        </nav>
+    </div>
+
+    <div id="modal-lottery" class="modal">
+        <div class="asset-item" style="width:80%; max-width:350px; padding:40px 20px; background: #1c1e20; border: 2px solid var(--secondary); text-align: center; border-radius: 20px;">
+            <div id="lottery-result-icon" style="font-size: 4rem; margin-bottom: 10px;">🎰</div>
+            <h2 id="lottery-result-title" style="margin:15px 0 5px; color:var(--secondary);">กำลังสุ่ม...</h2>
+            <div id="lottery-result-desc"></div>
+            <button onclick="closeLotteryModal()" class="buy-btn" style="margin-top:20px; width:auto; padding:10px 30px;">ตกลง</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. ข้อมูลพื้นฐาน ---
+        const businessData = {
+            coffee: { name: "ร้านกาแฟ", icon: "☕", basePower: 5 },
+            repair: { name: "ร้านซ่อมมือถือ", icon: "🛠️", basePower: 5 },
+            vending: { name: "ตู้น้ำหยอดเหรียญ", icon: "🥤", basePower: 5 },
+            truck: { name: "กองรถบรรทุก", icon: "🚚", basePower: 150 },
+            laundry: { name: "สะดวกซัก", icon: "🧺", basePower: 850 },
+            hotel: { name: "โรงแรม 5 ดาว", icon: "🏨", basePower: 5500 },
+            factory: { name: "โรงงานผลิตชิป", icon: "🏭", basePower: 42000 },
+            space: { name: "สถานีขนส่งอวกาศ", icon: "🚀", basePower: 2500000 }
+        };
+
+        const shopPrices = { truck: 5000, laundry: 25000, hotel: 150000, factory: 1000000 };
+
+        const lotteryInfo = {
+            'lottery-basic': {
+                name: "สลากปกติ (Classic)", color: "#8e44ad", rule: "จ่าย ฿100 ลุ้นรางวัลสูงสุด ฿3,000,000",
+                prizes: [
+                    { n: "แจ็คพอต 3 ล้าน", a: "฿3,000,000", p: "0.1%" },
+                    { n: "รางวัลใหญ่", a: "฿300,000", p: "1%" },
+                    { n: "รางวัลปลอบใจ", a: "฿30", p: "70%" }
+                ]
+            },
+            tier1: {
+                name: "บัตรเสี่ยงโชค (Silver)", color: "#C0C0C0", rule: "จ่าย ฿500 ลุ้นรางวัลสูงสุด ฿100,000",
+                prizes: [
+                    { n: "แจ็คพอตเงินแสน", a: "฿100,000", p: "0.1%" },
+                    { n: "รางวัลใหญ่", a: "฿50,000", p: "1%" },
+                    { n: "รางวัลปลอบใจ", a: "฿1,000", p: "10%" }
+                ]
+            },
+            tier2: {
+                name: "บัตรนักลงทุน (Gold)", color: "#D4AF37", rule: "จ่าย ฿50,000 ลุ้นรางวัลสูงสุด ฿5,000,000",
+                prizes: [
+                    { n: "แจ็คพอต 5 ล้าน", a: "฿5,000,000", p: "0.1%" },
+                    { n: "รางวัลใหญ่", a: "฿1,000,000", p: "1%" },
+                    { n: "รางวัลปลอบใจ", a: "฿100,000", p: "10%" }
+                ]
+            },
+            tier3: {
+                name: "บัตรมหาเศรษฐี (Diamond)", color: "#B9F2FF", rule: "จ่าย ฿5,000,000 ลุ้นรางวัลสูงสุด ฿500,000,000",
+                prizes: [
+                    { n: "แจ็คพอต 500 ล้าน", a: "฿500,000,000", p: "0.1%" },
+                    { n: "รางวัลใหญ่", a: "฿50,000,000", p: "1%" },
+                    { n: "รางวัล VIP", a: "฿10,000,000", p: "10%" }
+                ]
+            }
+        };
+
+        // --- 2. ตัวแปรสถานะเกม ---
+        let points = 0;
+        let pps = 0;
+        let owned = [];
+        let competitorCounts = {};
+        let isProcessing = false;
+        let discordId = ""; // เริ่มต้นเป็นค่าว่าง
+
+        // --- 3. ฟังก์ชันหลัก (Core Functions) ---
+        
+        // [FIXED] ฟังก์ชันโหลดข้อมูลที่รองรับ LocalStorage
+        async function loadData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const idFromUrl = urlParams.get('id');
+
+            // 1. ตรวจสอบ ID: ลำดับคือ URL > LocalStorage
+            if (idFromUrl) {
+                discordId = idFromUrl;
+                localStorage.setItem('business_empire_id', discordId);
+                // ลบ ?id= ออกจาก URL เพื่อความสะอาด (Optional)
+                window.history.replaceState({}, document.title, "/");
+            } else {
+                discordId = localStorage.getItem('business_empire_id');
+            }
+
+            // 2. ถ้าไม่มี ID เลยจริงๆ ให้ไปหน้า Login
+            if (!discordId) {
+                window.location.href = '/api/auth/discord';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/user/${discordId}`);
+                const user = await res.json();
+
+                if (!user || res.status !== 200) {
+                    // ถ้า ID ในเครื่องใช้ไม่ได้/ไม่พบใน DB ให้ล้างทิ้งแล้ว Login ใหม่
+                    localStorage.removeItem('business_empire_id');
+                    window.location.href = '/api/auth/discord';
+                    return;
+                }
+
+                points = user.points;
+                pps = user.pointsPerSecond;
+                owned = user.upgrades;
+                competitorCounts = user.competitorCounts || {};
+
+                const starter = document.getElementById('starter-screen');
+                if (starter) {
+                    starter.style.display = (owned.length === 0) ? 'flex' : 'none';
+                }
+
+                document.getElementById('display-name').innerText = user.username;
+                updateUI();
+            } catch (e) {
+                console.error("Load fail:", e);
+                // กรณี Server ล่ม หรือเน็ตหลุด ไม่ควรลบ ID ทิ้งทันที 
+                // แต่อาจจะโชว์ Alert แทน
+            }
+        }
+
+        function updateUI() {
+            const pointsDisplay = document.getElementById('points');
+            if (pointsDisplay) pointsDisplay.innerText = `฿${Math.floor(points).toLocaleString()}`;
+
+            const ppsDisplay = document.getElementById('pps');
+            if (ppsDisplay) ppsDisplay.innerText = `Profit: +฿${pps.toLocaleString()}/s`;
+
+            const list = document.getElementById('active-assets-list');
+            if (list) {
+                if (owned.length > 0) {
+                    list.innerHTML = owned.map(id => {
+                        const item = businessData[id] || { name: "ธุรกิจพิเศษ", icon: "💎", basePower: 0 };
+                        const count = competitorCounts[id] || 1;
+                        const actualPower = count > 0 ? (item.basePower / count) : item.basePower;
+
+                        return `
+                            <div class="asset-item">
+                                <div class="asset-icon">${item.icon}</div>
+                                <div class="asset-name">${item.name}</div>
+                                <div class="asset-status" style="color: ${count > 1 ? 'var(--danger)' : 'var(--accent)'}">
+                                    ● ${count > 1 ? `คู่แข่ง: ${count} คน` : 'ครองตลาดคนเดียว'}
+                                </div>
+                                <div style="font-size:0.7rem; color:var(--text-dim)">
+                                    รายได้จริง: +฿${actualPower.toLocaleString()}/s
+                                </div>
+                            </div>`;
+                    }).join('');
+                } else {
+                    list.innerHTML = '<p style="grid-column:1/-1; color:gray; text-align:center">ยังไม่มีธุรกิจ</p>';
+                }
+            }
+
+            for (let id in shopPrices) {
+                const btn = document.getElementById('btn-' + id);
+                if (btn) {
+                    if (owned.includes(id)) {
+                        btn.innerText = "ลงทุนแล้ว";
+                        btn.disabled = true;
+                    } else {
+                        btn.innerText = `฿${shopPrices[id].toLocaleString()}`;
+                        btn.disabled = points < shopPrices[id] || isProcessing;
+                    }
+                }
+            }
+
+            const lotteryPrices = { 'lottery-basic': 100, tier1: 500, tier2: 50000, tier3: 5000000 };
+            Object.keys(lotteryPrices).forEach(t => {
+                const btn = document.getElementById('btn-' + t);
+                if (btn) btn.disabled = points < lotteryPrices[t] || isProcessing;
+            });
+        }
+
+        // --- 4. ระบบลอตเตอรี่ ---
+        function showLotteryInfo(tier) {
+            const config = lotteryInfo[tier];
+            if (!config) return;
+
+            const infoDisplay = document.getElementById('lottery-info-display');
+            const tierName = document.getElementById('lottery-tier-name');
+
+            tierName.innerText = config.name;
+            tierName.style.color = config.color;
+
+            let html = `<div style="color:var(--text-dim); font-size:0.8rem; margin-bottom:10px;">กติกา: ${config.rule}</div>`;
+            html += `<table style="width:100%; font-size:0.85rem; border-collapse:collapse;">`;
+            config.prizes.forEach(p => {
+                html += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="text-align:left; padding:5px 0;">${p.n}</td>
+                    <td style="color:${config.color}; text-align:center;">${p.a}</td>
+                    <td style="text-align:right; color:var(--accent);">${p.p}</td>
+                </tr>`;
+            });
+            html += `</table>`;
+            infoDisplay.innerHTML = html;
+        }
+
+        async function openLottery(tier) {
+            const lotteryPrices = { 'lottery-basic': 100, tier1: 500, tier2: 50000, tier3: 5000000 };
+            const price = lotteryPrices[tier];
+
+            if (isProcessing || points < price) return;
+
+            isProcessing = true;
+            updateUI();
+
+            const modal = document.getElementById('modal-lottery');
+            modal.style.display = 'flex';
+            document.getElementById('lottery-result-title').innerText = "กำลังประมวลผล...";
+            document.getElementById('lottery-result-icon').innerText = "🎰";
+            document.getElementById('lottery-result-desc').innerText = "";
+
+            try {
+                const res = await fetch('/api/lottery', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discordId, tier })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    setTimeout(() => {
+                        const result = data.item;
+                        document.getElementById('lottery-result-icon').innerText = result.icon;
+                        document.getElementById('lottery-result-title').innerText = result.name;
+                        document.getElementById('lottery-result-title').style.color = data.color || 'var(--secondary)';
+                        document.getElementById('lottery-result-desc').innerHTML = `
+                            <div style="margin: 10px 0;">
+                                <h2 style="color:var(--accent); margin:0;">+ ฿${result.winAmount.toLocaleString()}</h2>
+                                <div style="color:var(--danger); font-size:0.8rem; margin-top:5px;">
+                                    (ค่าธรรมเนียม: ฿${data.ticketPricePaid.toLocaleString()})
+                                </div>
+                            </div>`;
+                        points = data.newPoints;
+                        isProcessing = false;
+                        updateUI();
+                    }, 1000);
+                } else {
+                    alert(data.message);
+                    closeLotteryModal();
+                }
+            } catch (e) {
+                console.error(e);
+                closeLotteryModal();
+            }
+        }
+
+        function closeLotteryModal() {
+            document.getElementById('modal-lottery').style.display = 'none';
+            isProcessing = false;
+            updateUI();
+        }
+
+        // --- 5. ฟังก์ชันสนับสนุน ---
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+            if (tabId === 'tab-leaderboard') loadLeaderboard();
+        }
+
+        async function loadLeaderboard() {
+            const list = document.getElementById('leaderboard-list');
+            list.innerHTML = 'กำลังโหลด...';
+            try {
+                const res = await fetch('/api/leaderboard');
+                const data = await res.json();
+                list.innerHTML = data.map((p, i) => `
+                    <div class="leaderboard-item" style="${p.discordId === discordId ? 'border:1px solid gold' : ''}">
+                        <span>${i + 1}</span>
+                        <div style="flex-grow:1"><strong>${p.username}</strong></div>
+                        <div style="color:var(--accent)">฿${Math.floor(p.points).toLocaleString()}</div>
+                    </div>`).join('');
+            } catch (e) { list.innerHTML = 'ไม่สามารถโหลดข้อมูลได้'; }
+        }
+
+        async function buyUpgrade(type) {
+            if (isProcessing) return;
+            const res = await fetch('/api/buy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ discordId, upgradeType: type })
+            });
+            const data = await res.json();
+            if (data.success) await loadData();
+            else alert(data.message);
+        }
+
+        async function chooseStarter(type) {
+            try {
+                const res = await fetch('/api/buy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discordId, upgradeType: type })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('starter-screen').style.display = 'none';
+                    await loadData();
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) { alert("เชื่อมต่อผิดพลาด"); }
+        }
+
+        function confirmReset() {
+            if (confirm("คุณต้องการเริ่มต้นใหม่ทั้งหมดใช่ไหม?")) {
+                fetch('/api/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discordId })
+                }).then(() => {
+                    localStorage.removeItem('business_empire_id');
+                    location.reload();
+                });
+            }
+        }
+
+        // --- 6. Game Loop & Auto-Save ---
+        setInterval(() => {
+            if (pps > 0 && !isProcessing) {
+                points += (pps / 10);
+                updateUI();
+            }
+        }, 100);
+
+        setInterval(() => {
+            // [FIXED] เพิ่มการตรวจสอบ discordId ก่อนเซฟ
+            if (discordId && pps > 0 && !isProcessing) {
+                fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discordId, points })
+                });
+            }
+        }, 10000);
+
+        window.onload = loadData;
+    </script>
+</body>
+
+</html>
