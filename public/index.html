@@ -18,7 +18,8 @@
             --accent: #00ff88;
             /* Neon Green */
             --danger: #ff4757;
-            --max-width: 500px;
+            /* default container width - optimized for desktop */
+            --max-width: 1100px;
             --shadow-gold: 0 0 15px rgba(212, 175, 55, 0.3);
         }
 
@@ -33,7 +34,28 @@
             align-items: center;
             min-height: 100vh;
             background-image: radial-gradient(circle at top right, #1a1c1e, #0b0c0d);
+            /* Prevent horizontal scrolling on desktop */
             overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior-x: none;
+        }
+
+        /* Custom Scrollbar for better UI on Desktop */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
         }
 
         #game-screen {
@@ -43,11 +65,14 @@
             padding-bottom: 110px;
             position: relative;
             box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.2);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+            margin: 0 auto;
         }
 
         /* --- UI: Credit Card --- */
         .credit-card {
-            width: 90%;
+            width: min(720px, 90%);
             aspect-ratio: 1.6 / 1;
             margin: 25px auto;
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%);
@@ -59,9 +84,78 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
+            box-sizing: border-box;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
             position: relative;
             overflow: hidden;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 900px) {
+            :root {
+                --max-width: 900px;
+            }
+            .credit-card { width: min(640px, 92%); }
+        }
+
+        @media (max-width: 700px) {
+            :root { --max-width: 700px; }
+            .credit-card { width: 92%; }
+            .stock-price { min-width: 100px; }
+        }
+
+        @media (max-width: 420px) {
+            :root { --max-width: 420px; }
+            .credit-card { width: 96%; padding: 18px; border-radius: 18px; }
+        }
+
+        /* Desktop: center main screen and avoid page scroll by scoping scroll to #game-screen */
+        @media (min-width: 900px) {
+            /* Fullscreen layout for desktop: row layout (sidebar + main) */
+            body {
+                align-items: stretch;
+                overflow-y: hidden; /* prevent body scroll on desktop */
+            }
+            #game-screen {
+                min-height: 100vh;
+                height: 100vh; /* fill viewport */
+                width: 100vw; /* full width */
+                max-width: none;
+                padding: 28px; /* keep some inner spacing */
+                margin: 0;
+                box-sizing: border-box;
+                display: grid;
+                grid-template-columns: 360px minmax(640px, 1fr);
+                gap: 28px;
+                align-items: start;
+            }
+            /* Sidebar (first child .credit-card) */
+            #game-screen > .credit-card {
+                grid-column: 1 / 2;
+                width: 100%;
+                margin: 0;
+                align-self: start;
+                height: calc(100vh - 80px);
+                max-height: calc(100vh - 80px);
+                overflow-y: auto;
+                aspect-ratio: unset;
+                padding: 24px;
+                border-radius: 18px;
+                box-shadow: 0 18px 40px rgba(0,0,0,0.55);
+                background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+            }
+
+            /* prettier internal scrollbar for the left sidebar */
+            #game-screen > .credit-card::-webkit-scrollbar { width: 8px; }
+            #game-screen > .credit-card::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 8px; }
+            /* Main content: tab panes should occupy second column */
+            #game-screen > .tab-content {
+                grid-column: 2 / 3;
+                padding: 12px 18px 120px 18px; /* extra bottom padding so nav doesn't overlap */
+                overflow-y: auto;
+                max-height: calc(100vh - 60px);
+            }
+            .nav { bottom: 28px; }
         }
 
         .credit-card::before {
@@ -75,6 +169,13 @@
             pointer-events: none;
         }
 
+        .card-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+        }
+
         #points {
             font-size: 2.8rem;
             font-weight: 700;
@@ -83,30 +184,308 @@
             text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
 
-        /* --- [NEW] Competitor Info UI --- */
-        .competitor-info {
+        .profit-text {
+            color: var(--accent);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        /* --- [NEW] Stock UI Components (refined) --- */
+        .stock-card {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            gap: 14px;
+            padding: 16px;
+            background: linear-gradient(180deg, rgba(24, 26, 31, 0.88) 0%, rgba(18, 20, 24, 0.96) 100%);
+            border-radius: 16px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            cursor: pointer;
+            transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        }
+
+        .stock-card::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            background: linear-gradient(180deg, var(--accent), rgba(0, 255, 136, 0.18));
+            border-radius: 0 6px 6px 0;
+            pointer-events: none;
+        }
+
+        .stock-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65), 0 0 22px rgba(88, 101, 242, 0.06);
+            border-color: rgba(88, 101, 242, 0.12);
+        }
+
+        .stock-card:active {
+            transform: translateY(-2px);
+        }
+
+        .stock-price,
+        .stock-total {
+            display: inline-block;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stock-price {
+            min-width: 120px;
+            font-weight: 700;
+            color: var(--secondary);
+            font-size: 1.15rem;
+        }
+
+        .stock-total {
+            color: var(--text-dim);
+            font-size: 0.88rem;
+        }
+
+        /* owned-stock summary cards on main page */
+        .owned-stock-card {
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            width: 100%;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px border rgba(255, 255, 255, 0.05);
+            gap: 12px;
+            background: linear-gradient(135deg, rgba(88, 101, 242, 0.12) 0%, rgba(68, 81, 232, 0.08) 100%);
+            padding: 14px 16px;
+            border-radius: 16px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(88, 101, 242, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
-        .comp-tag {
-            font-size: 0.65rem;
-            background: rgba(255, 71, 87, 0.15);
+        .owned-stock-card:hover {
+            background: linear-gradient(135deg, rgba(88, 101, 242, 0.18) 0%, rgba(68, 81, 232, 0.14) 100%);
+            transform: translateY(-2px);
+            border-color: rgba(88, 101, 242, 0.5);
+            box-shadow:
+                0 8px 20px rgba(88, 101, 242, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .owned-stock-info {
+            flex: 1;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            font-weight: 500;
+        }
+
+        .owned-stock-info strong {
+            color: #fff;
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .owned-stock-info br+* {
+            color: var(--secondary);
+            font-weight: 600;
+        }
+
+        .owned-stock-buttons button {
+            margin-left: 6px;
+            padding: 6px 10px !important;
+            font-size: 0.8rem !important;
+            border-radius: 10px !important;
+            transition: all 0.2s !important;
+        }
+
+        .owned-stock-buttons button:hover {
+            transform: scale(1.08) !important;
+        }
+
+        .sparkline {
+            width: 100px;
+            height: 36px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.2) 100%);
+            border-radius: 12px;
+            border: 1px solid rgba(212, 175, 55, 0.15);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .stock-card input[type=number] {
+            width: 60px !important;
+            padding: 8px 10px !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(88, 101, 242, 0.4) !important;
+            background: linear-gradient(135deg, rgba(88, 101, 242, 0.1) 0%, rgba(68, 81, 232, 0.05) 100%) !important;
+            color: white !important;
+            font-family: 'Kanit', sans-serif !important;
+            font-weight: 500 !important;
+            text-align: center !important;
+            transition: all 0.2s !important;
+        }
+
+        .stock-card input[type=number]:focus {
+            outline: none !important;
+            border-color: rgba(88, 101, 242, 0.8) !important;
+            box-shadow: 0 0 12px rgba(88, 101, 242, 0.3) !important;
+            background: linear-gradient(135deg, rgba(88, 101, 242, 0.15) 0%, rgba(68, 81, 232, 0.1) 100%) !important;
+        }
+
+        .stock-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .stock-card:active {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .stock-price-up {
+            color: var(--accent);
+        }
+
+        .stock-price-down {
             color: var(--danger);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: bold;
         }
 
-        /* --- Tabs & Animations --- */
+        .trade-btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 0;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .trade-btn-group button {
+            min-width: 120px;
+            width: auto;
+        }
+
+        .stock-btn {
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, var(--primary) 0%, #4e5ceb 100%);
+            color: white;
+            font-family: 'Kanit', sans-serif;
+            min-height: 44px;
+            touch-action: manipulation;
+            flex: 1;
+            user-select: none;
+            box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stock-btn::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .stock-btn:hover {
+            background: linear-gradient(135deg, #6c77ff 0%, #5d6cf5 100%);
+            transform: translateY(-2px);
+            box-shadow:
+                0 8px 20px rgba(88, 101, 242, 0.4),
+                0 0 20px rgba(88, 101, 242, 0.2);
+        }
+
+        .stock-btn:hover::before {
+            left: 100%;
+        }
+
+        .stock-btn:active {
+            transform: translateY(0px);
+            box-shadow:
+                0 4px 12px rgba(88, 101, 242, 0.3),
+                inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .stock-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: linear-gradient(135deg, rgba(88, 101, 242, 0.3) 0%, rgba(68, 81, 232, 0.25) 100%);
+            box-shadow: none;
+            transform: none !important;
+        }
+
+        .stock-btn.buy-action {
+            background: linear-gradient(135deg, #00ff88 0%, #00cc6f 100%);
+            box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+            color: #0b0c0d;
+        }
+
+        .stock-btn.buy-action:hover {
+            background: linear-gradient(135deg, #1aff99 0%, #00ee7f 100%);
+            box-shadow:
+                0 8px 20px rgba(0, 255, 136, 0.4),
+                0 0 20px rgba(0, 255, 136, 0.2);
+        }
+
+        .stock-btn.sell-action {
+            background: linear-gradient(135deg, #ff4757 0%, #ff3838 100%);
+            box-shadow: 0 4px 12px rgba(255, 71, 87, 0.3);
+        }
+
+        .stock-btn.sell-action:hover {
+            background: linear-gradient(135deg, #ff6a7d 0%, #ff5555 100%);
+            box-shadow:
+                0 8px 20px rgba(255, 71, 87, 0.4),
+                0 0 20px rgba(255, 71, 87, 0.2);
+        }
+
+
+        .mini-btn {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.86rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Kanit', sans-serif;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+            color: var(--secondary);
+            transition: transform 0.18s, box-shadow 0.18s;
+            min-height: 36px;
+            touch-action: manipulation;
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+        }
+
+        .mini-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(88, 101, 242, 0.05);
+            border-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .mini-btn:active {
+            transform: translateY(0px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.45);
+        }
+
+        .mini-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+
         .tab-content {
             display: none;
             padding: 0 20px;
             animation: fadeIn 0.4s ease-out;
+            box-sizing: border-box;
+            width: 100%;
         }
 
         .tab-content.active {
@@ -126,62 +505,105 @@
         }
 
         .category-title {
-            margin: 25px 0 15px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--secondary);
-            border-left: 4px solid var(--secondary);
-            padding-left: 12px;
+            margin: 30px 0 18px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #fff;
+            border-left: 5px solid var(--secondary);
+            border-bottom: 2px solid transparent;
+            border-image: linear-gradient(180deg, var(--secondary) 0%, rgba(212, 175, 55, 0) 100%);
+            padding-left: 14px;
+            padding-bottom: 8px;
+            position: relative;
+            display: inline-block;
+        }
+
+        .category-title::after {
+            content: "";
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--secondary) 0%, rgba(212, 175, 55, 0) 100%);
+        }
+
+        /* starter selection grid */
+        .starter-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        @media (min-width: 500px) {
+            .starter-grid {
+                grid-template-columns: repeat(3, 1fr);
+                max-width: 700px;
+            }
         }
 
         /* --- Assets & Shop Grid --- */
-        .assets-grid,
-        .shop-grid {
+        .assets-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 12px;
-            padding-bottom: 20px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
-        /* --- Asset Item (ธุรกิจที่มี) --- */
-        .asset-item {
+        .shop-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 15px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Remove media queries since we are using auto-fit */
+
+        .asset-item,
+        .biz-card {
             background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 20px;
-            padding: 15px 10px;
-            text-align: center;
+            padding: 15px;
             transition: 0.3s;
         }
 
-        .asset-item:hover {
-            transform: translateY(-5px);
-            border-color: var(--secondary);
+        .biz-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        /* --- [NEW] Lottery UI Improvements --- */
-        #lottery-info-display {
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 15px;
-            padding: 12px;
-            margin-top: 10px;
-            border: 1px solid rgba(142, 68, 173, 0.3);
+        /* specialized styling for starter selection cards */
+        #starter-screen .starter-grid .biz-card {
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            cursor: pointer;
+            position: relative;
         }
 
-        .lottery-table {
-            width: 100%;
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            border-collapse: collapse;
+        #starter-screen .starter-grid .biz-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
         }
 
-        .lottery-table tr:hover {
-            color: #fff;
-        }
-
-        .lottery-table td {
-            padding: 4px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        #starter-screen .starter-grid .biz-card .badge {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: var(--accent);
+            color: #000;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 12px;
         }
 
         /* --- Navigation --- */
@@ -192,11 +614,11 @@
             transform: translateX(-50%);
             width: 92%;
             max-width: 450px;
-            background: rgba(20, 22, 24, 0.95);
+            background: rgba(20, 22, 24, 0.9);
             backdrop-filter: blur(20px);
             display: flex;
             justify-content: space-around;
-            padding: 12px;
+            padding: 12px 5px;
             border-radius: 24px;
             border: 1px solid rgba(255, 255, 255, 0.1);
             z-index: 1000;
@@ -207,13 +629,14 @@
             background: none;
             border: none;
             color: var(--text-dim);
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             cursor: pointer;
             transition: 0.3s;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 4px;
+            flex: 1;
         }
 
         .nav-btn.active {
@@ -221,134 +644,230 @@
             transform: translateY(-2px);
         }
 
-        /* --- Modal & Result --- */
-        /* --- [FIXED] Modal Center Screen --- */
-.modal {
-    display: none; /* ซ่อนไว้ก่อน */
-    position: fixed; /* ล็อกตำแหน่งไว้กับหน้าจอ */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85); /* พื้นหลังดำโปร่งแสง */
-    backdrop-filter: blur(8px); /* ทำพื้นหลังเบลอ */
-    z-index: 9999; /* ให้ค่าสูงที่สุดเพื่อให้ทับทุกอย่างรวมถึงเมนู */
-    justify-content: center; /* จัดกลางแนวนอน */
-    align-items: center; /* จัดกลางแนวตั้ง */
-}
-
-.modal .asset-item {
-    background: #1c1e20;
-    border: 2px solid var(--secondary);
-    border-radius: 24px;
-    padding: 40px 20px;
-    width: 85%;
-    max-width: 350px;
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
-    /* เอา Margin-top/bottom ออกเพื่อให้มันอยู่กลางจอจริงๆ */
-    margin: 0; 
-}
-
-        /* --- Utils --- */
-        .text-accent {
-            color: var(--accent);
-        }
-
-        .text-danger {
-            color: var(--danger);
-        }
-
-        .text-gold {
-            color: var(--secondary);
-        }
-
-        /* --- [FIXED] Leaderboard UI --- */
-        #leaderboard-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .leaderboard-item {
-            display: flex;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 15px;
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: 0.3s;
-        }
-
-        .leaderboard-item span:first-child {
-            font-weight: bold;
-            color: var(--secondary);
-            width: 30px;
-            font-size: 1.1rem;
-        }
-
-        .leaderboard-item strong {
-            flex-grow: 1;
-            margin-left: 10px;
-        }
-
-        /* --- [FIXED] Buttons & Forms --- */
+        /* --- Buttons --- */
         .buy-btn {
             width: 100%;
-            padding: 12px;
+            padding: 10px;
             border-radius: 12px;
             border: none;
             background: var(--primary);
             color: white;
             font-weight: 600;
             cursor: pointer;
-            transition: 0.2s;
             font-family: 'Kanit', sans-serif;
-            margin-top: 5px;
+            min-height: 40px;
+            /* เพิ่มพื้นที่ให้กดง่าย */
+            touch-action: manipulation;
+            /* ช่วยให้ Mobile และ Desktop ประมวลผล Click ได้ดี */
+            user-select: none;
+        }
+
+        .buy-btn:active {
+            transform: scale(0.96);
         }
 
         .buy-btn:disabled {
             background: #333;
             color: #666;
             cursor: not-allowed;
-            transform: none !important;
+            opacity: 0.6;
+            /* ป้องกันปุ่มจ้าง แต่ยังเห็นชัด */
         }
 
-        .buy-btn:active {
-            transform: scale(0.95);
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
         }
 
-        .btn-danger {
-            background: var(--danger) !important;
-            color: white;
+        /* --- Modal --- */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            pointer-events: all;
         }
 
-        /* --- Shop Card Layout --- */
-        .biz-card {
-            background: var(--card);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            padding: 15px;
+        .modal.active {
+            pointer-events: all;
+        }
+
+        .leaderboard-item {
             display: flex;
             align-items: center;
-            gap: 15px;
-            transition: 0.3s;
+            /* จัดให้อยู่กลางแนวดิ่ง */
+            justify-content: space-between;
+            /* ดันเงินไปขวาสุด ชื่อไปซ้ายสุด */
+            background: rgba(255, 255, 255, 0.03);
+            padding: 18px 20px;
+            /* เพิ่ม Padding ให้ดูไม่อึดอัด */
+            border-radius: 18px;
+            margin-bottom: 12px;
+            /* เพิ่มระยะห่างระหว่างแถว */
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.2s ease;
         }
 
-        .biz-info {
-            flex-grow: 1;
+        /* เอฟเฟกต์เฉพาะรายการที่เป็นของเรา */
+        .leaderboard-item.is-me {
+            border: 1px solid var(--secondary);
+            background: rgba(212, 175, 55, 0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
 
-        .biz-info strong {
-            font-size: 0.95rem;
-            display: block;
-        }
-
-        /* --- Starter Screen Grid --- */
-        #starter-screen .biz-card {
+        /* --- Stock Graph Modal Styles --- */
+        .stock-graph-modal {
+            width: 90vw;
+            max-width: 700px;
+            min-width: 280px;
+            background: linear-gradient(135deg, rgba(24, 26, 31, 0.95) 0%, rgba(18, 20, 24, 1) 100%) !important;
+            padding: 28px !important;
+            border-radius: 24px !important;
+            box-sizing: border-box;
+            display: flex;
             flex-direction: column;
+            align-items: stretch;
+            border: 1px solid rgba(212, 175, 55, 0.2) !important;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6) !important;
+            pointer-events: all;
+        }
+
+        .stock-graph-modal h3 {
+            margin: 0 0 16px 0;
+            font-size: 1.2rem;
+            color: #fff;
+            width: 100%;
             text-align: center;
-            padding: 20px;
+            pointer-events: none;
+        }
+
+        .stock-graph-modal h3 .symbol {
+            color: var(--secondary);
+            font-weight: 700;
+        }
+
+        .stock-graph-modal button {
+            pointer-events: all !important;
+            cursor: pointer !important;
+        }
+
+        #stock-graph-container {
+            width: 100%;
+            height: 350px;
+            max-width: 650px;
+            min-width: 250px;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.1) 100%);
+            border-radius: 16px;
+            border: 1px solid rgba(212, 175, 55, 0.15);
+            padding: 12px;
+            box-sizing: border-box;
+            margin: 0 auto 16px;
+            pointer-events: none;
+        }
+
+        @media (max-width: 600px) {
+            .stock-graph-modal {
+                max-width: 95vw;
+                min-width: auto;
+                padding: 20px;
+            }
+
+            .stock-graph-modal h3 {
+                font-size: 1.1rem;
+            }
+
+            #stock-graph-container {
+                height: 280px;
+                max-width: 100%;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .stock-graph-modal {
+                padding: 16px;
+            }
+
+            #stock-graph-container {
+                height: 240px;
+            }
+        }
+
+        /* --- Responsive tweaks for stocks and layout --- */
+        @media (max-width: 500px) {
+            .stock-card {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .trade-btn-group {
+                width: 100%;
+                justify-content: space-between;
+                flex-wrap: wrap;
+            }
+
+            .trade-btn-group button {
+                flex: 1 1 auto;
+                margin-top: 4px;
+            }
+        }
+
+        /* expand container on larger screens */
+        @media (min-width: 600px) {
+            :root {
+                --max-width: 700px;
+            }
+        }
+
+        @media (min-width: 900px) {
+            :root {
+                --max-width: 1000px;
+            }
+        }
+
+        /* subtitle helper */
+        #starter-screen .subtitle {
+            font-style: italic;
+            opacity: 0.85;
+        }
+
+        /* starter grid default (mobile) */
+        #starter-screen .starter-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        /* desktop: flex with wrapping and flexible width (no scroll) */
+        @media (min-width: 600px) {
+            #starter-screen .starter-grid {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                max-width: 100%;
+                overflow-x: hidden;
+                /* prevent scrollbar */
+            }
+
+            #starter-screen .starter-grid .biz-card {
+                flex: 1 1 160px;
+                /* can grow/shrink, base 160px */
+                max-width: 200px;
+                margin: 6px;
+            }
+        }
+
+        /* larger screen: slightly larger base width */
+        @media (min-width: 900px) {
+            #starter-screen .starter-grid .biz-card {
+                flex: 1 1 180px;
+                max-width: 220px;
+            }
         }
     </style>
 </head>
@@ -356,25 +875,12 @@
 <body>
     <div id="starter-screen"
         style="position:fixed; inset:0; background:var(--bg); z-index:9999; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
-        <h2 style="color: var(--secondary); margin-bottom: 5px;">เลือกธุรกิจเริ่มต้น</h2>
-        <p style="color: var(--text-dim); margin-bottom: 25px; font-size: 0.9rem;">เลือกรากฐานของอาณาจักรคุณ (ฟรี)</p>
+        <h2 style="color: var(--secondary); margin-bottom: 5px;">🏛️ เลือกธุรกิจเริ่มต้น</h2>
+        <p class="subtitle" style="color: var(--text-dim); margin-bottom: 25px; font-size: 0.95rem;">
+            เลือกรากฐานของอาณาจักรคุณ — <strong>ฟรี!</strong></p>
 
-        <div style="display: grid; grid-template-columns: 1fr; gap: 15px; width: 100%; max-width: 300px;">
-            <div class="biz-card" onclick="chooseStarter('coffee')" style="cursor:pointer;">
-                <span style="font-size: 2.5rem;">☕</span>
-                <h3>ร้านกาแฟ</h3>
-                <p style="color: var(--accent);">รายได้พื้นฐาน: +฿5/s</p>
-            </div>
-            <div class="biz-card" onclick="chooseStarter('repair')" style="cursor:pointer;">
-                <span style="font-size: 2.5rem;">🛠️</span>
-                <h3>ร้านซ่อมมือถือ</h3>
-                <p style="color: var(--accent);">รายได้พื้นฐาน: +฿5/s</p>
-            </div>
-            <div class="biz-card" onclick="chooseStarter('vending')" style="cursor:pointer;">
-                <span style="font-size: 2.5rem;">🥤</span>
-                <h3>ตู้น้ำหยอดเหรียญ</h3>
-                <p style="color: var(--accent);">รายได้พื้นฐาน: +฿5/s</p>
-            </div>
+        <div class="starter-grid" id="starter-grid-container">
+            <!-- Will be populated by updateStarterGrid() -->
         </div>
         <p style="margin-top:20px; font-size:0.7rem; color:var(--danger);">*หมายเหตุ: รายได้จริงอาจลดลงหากมีคู่แข่ง</p>
     </div>
@@ -384,65 +890,201 @@
             <div class="card-label">TOTAL CAPITAL | ผู้ลงทุน: <span id="display-name">...</span></div>
             <div id="points">฿0</div>
             <div class="profit-text" id="pps">Profit: +฿0/s</div>
-            <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-top: 5px;">*คำนวณคู่แข่งแล้ว</div>
+            <div style="font-size: 0.85rem; color: #f1c40f; margin-top: 5px; font-weight: 600;">🌟 ความนิยม: <span
+                    id="display-popularity">0</span> <small
+                    style="font-weight:normal; color:rgba(255,255,255,0.6);">(ยอดบริจาคสะสม <span
+                        id="display-donation">0</span>)</small></div>
+            <div style="font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 3px;">*คำนวณคู่แข่ง, ความนิยม
+                และหุ้นแล้ว
+            </div>
         </div>
+
+        <!-- Global candlestick removed — candlestick now only shown in stock detail view -->
 
         <div id="tab-main" class="tab-content active">
             <div class="category-title">อาณาจักรของคุณ</div>
-            <div id="active-assets-list" class="assets-grid">
+            <!-- main page: small summary or sparkline can go here (chart moved to detail view) -->
+            <!-- owned stocks summary -->
+            <div id="owned-stocks-container"></div>
+
+            <div class="category-title" style="margin-top: 25px;">🌟 บริจาคช่วยเหลือสังคม</div>
+            <div
+                style="background: rgba(241, 196, 15, 0.08); border: 1px solid rgba(241, 196, 15, 0.2); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 0; line-height: 1.4;">
+                    บริจาคเงินให้สังคมเพื่อเพิ่ม <strong
+                        style="color: #f1c40f;">"ค่าความนิยม"</strong><br>ยิ่งคุณมีความนิยมสูง คุณจะยิ่งดึงดูดลูกค้าและ
+                    <span style="color:var(--accent);">แย่งรายได้จากคู่แข่ง</span> ในธุรกิจเดียวกันได้มากขึ้น!<br><span
+                        style="color: #f1c40f; font-size: 0.8rem;">(บริจาคสะสมครบทุก 25% ของเงินที่มีของผู้เล่น = ความนิยมขึ้น 1 หน่วย)</span>
+                </p>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <input type="number" id="donate-amount" min="1000" step="1000"
+                        placeholder="ใส่จำนวนเงิน (เช่น 50000)"
+                        style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid rgba(241, 196, 15, 0.5); background: rgba(0,0,0,0.3); color: white; font-family: 'Kanit';">
+                    <button onclick="donateMoney()" class="buy-btn"
+                        style="width: auto; padding: 10px 20px; background: linear-gradient(135deg, #f39c12 0%, #f1c40f 100%); color: #000;">บริจาคเลย</button>
                 </div>
+            </div>
+
+            <div id="active-assets-list" class="assets-grid">
+            </div>
+        </div>
+
+        <div id="tab-stocks" class="tab-content">
+            <div class="category-title">ตลาดหุ้นและสินทรัพย์ดิจิทัล</div>
+            <div
+                style="background: rgba(0,255,136,0.05); padding: 15px; border-radius: 15px; margin-bottom: 20px; border: 1px dashed var(--accent);">
+                <small style="color: var(--accent);">💡 ราคาหุ้นจะเปลี่ยนแปลงทุกๆ 1 นาที โปรดติดตามความผันผวน</small>
+            </div>
+            <div id="stock-list-container" class="shop-grid">
+            </div>
+        </div>
+
+        <div id="tab-stock-detail" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <button class="mini-btn" onclick="goBackToStocks()" style="padding: 8px 12px; cursor: pointer;">←
+                    กลับ</button>
+                <div class="category-title" style="margin: 0; display: inline-block;">ข้อมูลหุ้น <span
+                        id="detail-symbol" style="color: var(--secondary);">---</span></div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                <div
+                    style="background: rgba(88, 101, 242, 0.15); padding: 16px; border-radius: 16px; border: 1px solid rgba(88, 101, 242, 0.3);">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 4px;">ราคาปัจจุบัน</div>
+                    <div style="font-weight: 700; font-size: 1.3rem; color: var(--secondary);">฿<span
+                            id="detail-price">0</span></div>
+                </div>
+                <div
+                    style="background: rgba(0, 255, 136, 0.15); padding: 16px; border-radius: 16px; border: 1px solid rgba(0, 255, 136, 0.3);">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 4px;">ที่ถือครอง</div>
+                    <div style="font-weight: 700; font-size: 1.3rem; color: var(--accent);" id="detail-owned">0 หน่วย
+                    </div>
+                </div>
+                <div
+                    style="background: rgba(255, 71, 87, 0.15); padding: 16px; border-radius: 16px; border: 1px solid rgba(255, 71, 87, 0.3);">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 4px;">ต้นทุนเฉลี่ย</div>
+                    <div style="font-weight: 700; font-size: 1.3rem; color: #ff9f43;">฿<span id="detail-avg">0</span>
+                    </div>
+                </div>
+                <div
+                    style="background: rgba(155, 89, 182, 0.15); padding: 16px; border-radius: 16px; border: 1px solid rgba(155, 89, 182, 0.3);">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 4px;">กำไร/ขาดทุน</div>
+                    <div style="font-weight: 700; font-size: 1.1rem;" id="detail-pl">0%</div>
+                </div>
+                <div
+                    style="background: rgba(255, 71, 87, 0.15); padding: 16px; border-radius: 16px; border: 1px solid rgba(255, 71, 87, 0.3);">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 4px;">มูลค่ารวม</div>
+                    <div style="font-weight: 700; font-size: 1.3rem; color: #ff4757;">฿<span id="detail-total">0</span>
+                    </div>
+                </div>
+                <div
+                    style="background: rgba(212, 175, 55, 0.15); padding: 16px; border-radius: 16px; border: 1px solid rgba(212, 175, 55, 0.3);">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 4px;">ชื่อหุ้น</div>
+                    <div style="font-weight: 600; font-size: 0.95rem;" id="detail-name">---</div>
+                </div>
+            </div>
+
+            <!-- Candlestick chart for the selected stock -->
+            <div style="margin-bottom:18px;">
+                <div id="candlestick-chart-detail"
+                    style="width:100%; height:360px; border-radius:12px; overflow:hidden; background: linear-gradient(180deg, rgba(11,12,13,1), rgba(16,16,18,1)); border:1px solid rgba(255,255,255,0.03);">
+                </div>
+            </div>
+
+            <div class="category-title" style="margin-bottom: 15px;">ซื้อ/ขายหุ้น</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                <div
+                    style="background: rgba(88, 101, 242, 0.08); padding: 16px; border-radius: 16px; border: 1px solid rgba(88, 101, 242, 0.2);">
+                    <label
+                        style="color: var(--text-dim); font-size: 0.9rem; display: block; margin-bottom: 8px; font-weight: 500;">จำนวนที่ต้องการซื้อ</label>
+                    <input type="number" id="detail-buy-qty" min="1" value="1"
+                        style="width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(88, 101, 242, 0.4); background: rgba(88, 101, 242, 0.1); color: white; font-family: 'Kanit'; margin-bottom: 12px;">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 12px;">ราคารวม: ฿<span
+                            id="detail-buy-total">0</span></div>
+                    <button class="stock-btn buy-action"
+                        onclick="tradeStock(document.getElementById('detail-symbol').textContent, 'buy')"
+                        style="width: 100%;">✓ ซื้อ</button>
+                </div>
+                <div
+                    style="background: rgba(255, 71, 87, 0.08); padding: 16px; border-radius: 16px; border: 1px solid rgba(255, 71, 87, 0.2);">
+                    <label
+                        style="color: var(--text-dim); font-size: 0.9rem; display: block; margin-bottom: 8px; font-weight: 500;">จำนวนที่ต้องการขาย</label>
+                    <input type="number" id="detail-sell-qty" min="1" value="1"
+                        style="width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255, 71, 87, 0.4); background: rgba(255, 71, 87, 0.1); color: white; font-family: 'Kanit'; margin-bottom: 12px;">
+                    <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 12px;">ราคารวม: ฿<span
+                            id="detail-sell-total">0</span></div>
+                    <button class="stock-btn sell-action"
+                        onclick="tradeStock(document.getElementById('detail-symbol').textContent, 'sell')"
+                        style="width: 100%;">↓ ขาย</button>
+                </div>
+            </div>
         </div>
 
         <div id="tab-shop" class="tab-content">
             <div class="category-title">การลงทุนระดับมหาเศรษฐี</div>
             <div class="shop-grid">
-                <div class="biz-card">
+                <div class="biz-card" data-type="truck" data-basecost="5000">
                     <span style="font-size: 2rem;">🚚</span>
                     <div class="biz-info">
                         <strong>กองรถบรรทุก</strong><br>
-                        <small style="color:var(--accent)">ฐาน: +฿150/s</small>
+                        <small style="color:var(--accent)" id="info-truck">ฐาน: +฿150/s</small>
                     </div>
+                    <div class="owned-badge" id="badge-truck" style="position:absolute; top:8px; right:8px; font-size:0.75rem; color:var(--secondary);"></div>
                     <button id="btn-truck" onclick="buyUpgrade('truck')" class="buy-btn">฿5,000</button>
                 </div>
-                <div class="biz-card">
+                <div class="biz-card" data-type="laundry" data-basecost="25000">
                     <span style="font-size: 2rem;">🧺</span>
                     <div class="biz-info">
                         <strong>สะดวกซัก</strong><br>
-                        <small style="color:var(--accent)">ฐาน: +฿850/s</small>
+                        <small style="color:var(--accent)" id="info-laundry">ฐาน: +฿850/s</small>
                     </div>
+                    <div class="owned-badge" id="badge-laundry" style="position:absolute; top:8px; right:8px; font-size:0.75rem; color:var(--secondary);"></div>
                     <button id="btn-laundry" onclick="buyUpgrade('laundry')" class="buy-btn">฿25,000</button>
                 </div>
-                <div class="biz-card">
+                <div class="biz-card" data-type="hotel" data-basecost="150000">
                     <span style="font-size: 2rem;">🏨</span>
                     <div class="biz-info">
                         <strong>โรงแรม 5 ดาว</strong><br>
-                        <small style="color:var(--accent)">ฐาน: +฿5,500/s</small>
+                        <small style="color:var(--accent)" id="info-hotel">ฐาน: +฿5,500/s</small>
                     </div>
+                    <div class="owned-badge" id="badge-hotel" style="position:absolute; top:8px; right:8px; font-size:0.75rem; color:var(--secondary);"></div>
                     <button id="btn-hotel" onclick="buyUpgrade('hotel')" class="buy-btn">฿150,000</button>
                 </div>
-                <div class="biz-card">
+                <div class="biz-card" data-type="factory" data-basecost="1000000">
                     <span style="font-size: 2rem;">🏭</span>
                     <div class="biz-info">
                         <strong>โรงงานผลิตชิป</strong><br>
-                        <small style="color:var(--accent)">ฐาน: +฿42,000/s</small>
+                        <small style="color:var(--accent)" id="info-factory">ฐาน: +฿42,000/s</small>
                     </div>
+                    <div class="owned-badge" id="badge-factory" style="position:absolute; top:8px; right:8px; font-size:0.75rem; color:var(--secondary);"></div>
                     <button id="btn-factory" onclick="buyUpgrade('factory')" class="buy-btn">฿1,000,000</button>
                 </div>
             </div>
 
             <div class="category-title">สลากเศรษฐี</div>
-            <div class="biz-card" style="flex-direction: column; background: rgba(142, 68, 173, 0.1); border-color: #8e44ad; padding: 20px;">
+            <div class="biz-card"
+                style="flex-direction: column; background: rgba(142, 68, 173, 0.1); border-color: #8e44ad; padding: 20px;">
                 <div style="text-align: center; width: 100%;">
                     <span style="font-size: 2.5rem;">🎫</span><br>
-                    <strong id="lottery-tier-name" style="font-size: 1.2rem; display: block; margin-top: 5px;">เลือกประเภทบัตร</strong>
-                    <div id="lottery-info-display" style="margin-top: 15px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; min-height: 80px;">
-                        <p style="color: var(--text-dim); font-size: 0.85rem; margin: 0;">เอาเมาส์วางที่ปุ่มเพื่อดูรายละเอียด</p>
+                    <strong id="lottery-tier-name"
+                        style="font-size: 1.2rem; display: block; margin-top: 5px;">เลือกประเภทบัตร</strong>
+                    <div id="lottery-info-display"
+                        style="margin-top: 15px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; min-height: 80px;">
+                        <p style="color: var(--text-dim); font-size: 0.85rem; margin: 0;">
+                            เอาเมาส์วางที่ปุ่มเพื่อดูรายละเอียด</p>
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px; width: 100%;">
-                    <button class="buy-btn" id="btn-tier1" onclick="openLottery('tier1')" onmouseover="showLotteryInfo('tier1')" style="background:#C0C0C0; color:black; font-weight:bold;">ซื้อบัตรเสี่ยงโชค (฿500)</button>
-                    <button class="buy-btn" id="btn-tier2" onclick="openLottery('tier2')" onmouseover="showLotteryInfo('tier2')" style="background:#D4AF37; color:black; font-weight:bold;">ซื้อบัตรนักลงทุน (฿50,000)</button>
-                    <button class="buy-btn" id="btn-tier3" onclick="openLottery('tier3')" onmouseover="showLotteryInfo('tier3')" style="background:#B9F2FF; color:black; font-weight:bold;">ซื้อบัตรมหาเศรษฐี (฿5,000,000)</button>
+                    <button class="buy-btn" id="btn-tier1" onclick="openLottery('tier1')"
+                        onmouseover="showLotteryInfo('tier1')"
+                        style="background:#C0C0C0; color:black; font-weight:bold;">ซื้อบัตรเสี่ยงโชค (฿500)</button>
+                    <button class="buy-btn" id="btn-tier2" onclick="openLottery('tier2')"
+                        onmouseover="showLotteryInfo('tier2')"
+                        style="background:#D4AF37; color:black; font-weight:bold;">ซื้อบัตรนักลงทุน (฿50,000)</button>
+                    <button class="buy-btn" id="btn-tier3" onclick="openLottery('tier3')"
+                        onmouseover="showLotteryInfo('tier3')"
+                        style="background:#B9F2FF; color:black; font-weight:bold;">ซื้อบัตรมหาเศรษฐี
+                        (฿5,000,000)</button>
                 </div>
             </div>
         </div>
@@ -450,19 +1092,32 @@
         <div id="tab-leaderboard" class="tab-content">
             <div class="category-title">10 อันดับมหาเศรษฐี</div>
             <div id="leaderboard-list">
-                </div>
+            </div>
         </div>
 
         <div id="tab-settings" class="tab-content">
             <div class="category-title">ตั้งค่าระบบ</div>
             <div class="biz-card" style="padding: 20px; flex-direction: column; gap: 15px;">
-                <button onclick="confirmReset()" class="buy-btn" style="background: var(--danger); width: 100%;">เริ่มต้นใหม่ทั้งหมด (Reset)</button>
-                <p style="font-size: 0.8rem; color: var(--text-dim);">การ Reset จะล้างข้อมูลธุรกิจและแต้มทั้งหมดของคุณ</p>
+                <strong>📊 ข้อมูลเศรษฐกิจ</strong>
+                <p id="econ-info" style="margin:4px 0; font-size:0.85rem; color:var(--text-dim);">
+                    • อัตราดอกเบี้ย: 0.05%/ชั่วโมง (ยอดเงินทั้งหมด)<br>
+                    • ค่าบำรุง: 0.2%/ชั่วโมง (เฉพาะส่วนเกิน ฿100,000)<br>
+                    • ค่าธรรมเนียมธุรกรรม: 1% การซื้อ-ขาย-ล็อตเตอรี่<br>
+                    • ต้นทุนเพิ่ม: 15% ต่อหน่วยที่มีแล้วในร้านค้า<br>
+                    • เฟสตลาด: <span id="market-stage-label">กำลังโหลด...</span>
+                </p>
+            </div>
+            <div class="biz-card" style="padding: 20px; flex-direction: column; gap: 15px;">
+                <button onclick="confirmReset()" class="buy-btn"
+                    style="background: var(--danger); width: 100%;">เริ่มต้นใหม่ทั้งหมด (Reset)</button>
+                <p style="font-size: 0.8rem; color: var(--text-dim);">การ Reset จะล้างข้อมูลธุรกิจ หุ้น
+                    และแต้มทั้งหมดของคุณ</p>
             </div>
         </div>
 
         <nav class="nav">
             <button class="nav-btn active" onclick="switchTab('tab-main', this)">📊<br>หน้าแรก</button>
+            <button class="nav-btn" onclick="switchTab('tab-stocks', this)">📈<br>หุ้น</button>
             <button class="nav-btn" onclick="switchTab('tab-shop', this)">🏢<br>ลงทุน</button>
             <button class="nav-btn" onclick="switchTab('tab-leaderboard', this)">🏆<br>อันดับ</button>
             <button class="nav-btn" onclick="switchTab('tab-settings', this)">⚙️<br>ตั้งค่า</button>
@@ -470,20 +1125,71 @@
     </div>
 
     <div id="modal-lottery" class="modal">
-        <div class="asset-item" style="width:80%; max-width:350px; padding:40px 20px; background: #1c1e20; border: 2px solid var(--secondary); text-align: center; border-radius: 20px;">
+        <div class="asset-item"
+            style="width:80%; max-width:350px; padding:40px 20px; background: #1c1e20; border: 2px solid var(--secondary); text-align: center; border-radius: 20px;">
             <div id="lottery-result-icon" style="font-size: 4rem; margin-bottom: 10px;">🎰</div>
             <h2 id="lottery-result-title" style="margin:15px 0 5px; color:var(--secondary);">กำลังสุ่ม...</h2>
             <div id="lottery-result-desc"></div>
-            <button onclick="closeLotteryModal()" class="buy-btn" style="margin-top:20px; width:auto; padding:10px 30px;">ตกลง</button>
+            <button onclick="closeLotteryModal()" class="buy-btn"
+                style="margin-top:20px; width:auto; padding:10px 30px;">ตกลง</button>
+        </div>
+    </div>
+
+    <div id="modal-stock-graph" class="modal" style="display:none;align-items:center;justify-content:center;"
+        onclick="if(event.target.id === 'modal-stock-graph') closeStockGraph();">
+        <div class="asset-item stock-graph-modal" onclick="event.stopPropagation();">
+            <div
+                style="position: relative; width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="margin: 0; flex: 1; font-size: 1.2rem; color: #fff; text-align: center;">กราฟราคาหุ้น <span
+                        class="symbol" id="modal-stock-symbol"
+                        style="color: var(--secondary); font-weight: 700;">---</span></h3>
+                <button class="mini-btn"
+                    style="padding: 6px 10px; font-size: 1rem; min-height: auto; background: rgba(255, 71, 87, 0.2); border-color: rgba(255, 71, 87, 0.5); color: #ff4757; margin: 0;"
+                    onclick="closeStockGraph()" title="ปิด">✕</button>
+            </div>
+            <div id="stock-graph-container"></div>
+            <button class="mini-btn" style="margin-top:20px; width: 100%; max-width: 220px; padding: 12px 16px;"
+                onclick="closeStockGraph()">ปิดกราฟ</button>
+        </div>
+    </div>
+
+    <!-- Modal Offline Earnings/Passive Income -->
+    <div id="modal-offline-earnings" class="modal" style="display:none;align-items:center;justify-content:center;"
+        onclick="if(event.target.id === 'modal-offline-earnings') this.style.display='none';">
+        <div class="asset-item"
+            style="width:85%; max-width:380px; padding:35px 25px; background: linear-gradient(145deg, rgba(30, 32, 35, 0.98), rgba(20, 22, 25, 0.98)); border: 2px solid var(--accent); text-align: center; border-radius: 20px; box-shadow: 0 15px 40px rgba(0,255,136,0.15); position: relative;"
+            onclick="event.stopPropagation();">
+            <div style="font-size: 4rem; margin-bottom: 5px;">💼</div>
+            <h2
+                style="margin:5px 0 10px; color:var(--accent); font-size: 1.5rem; text-shadow: 0 2px 10px rgba(0,255,136,0.2);">
+                ยินดีต้อนรับกลับเถ้าแก่!</h2>
+            <p style="color: var(--text-dim); font-size: 0.95rem; margin-bottom: 15px; line-height: 1.5;">
+                ธุรกิจของคุณดึงดูดลูกค้าช่วงที่คุณไม่อยู่<br>และสร้างรายได้ไปทั้งหมด
+            </p>
+            <div
+                style="background: rgba(0, 255, 136, 0.1); border: 1px dashed var(--accent); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                <span style="font-size: 1.8rem; font-weight: 700; color: #fff;">฿<span
+                        id="offline-earnings-amount">0</span></span>
+            </div>
+            <button onclick="document.getElementById('modal-offline-earnings').style.display='none'" class="buy-btn"
+                style="width:100%; padding:14px; background: linear-gradient(135deg, var(--accent) 0%, #00cc6f 100%); color: #0b0c0d; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(0,255,136,0.3); border-radius: 12px; font-weight: bold;">✓
+                รับเงิน</button>
         </div>
     </div>
 
     <script>
         // --- 1. ข้อมูลพื้นฐาน ---
+        const PRICE_FLOORS = { early: 0.5, mid: 0.25, late: 0.1 };
+        let marketStage = '';
         const businessData = {
             coffee: { name: "ร้านกาแฟ", icon: "☕", basePower: 5 },
             repair: { name: "ร้านซ่อมมือถือ", icon: "🛠️", basePower: 5 },
             vending: { name: "ตู้น้ำหยอดเหรียญ", icon: "🥤", basePower: 5 },
+            convenience: { name: "ร้านสะดวกซื้อ", icon: "🏪", basePower: 5 },
+            ramen: { name: "ร้านราเมน", icon: "🍜", basePower: 5 },
+            rental: { name: "การให้เช่า", icon: "🏠", basePower: 5 },
+            barbershop: { name: "ร้านตัดผม", icon: "💇", basePower: 5 },
+            arcade: { name: "ร้านเกมส์", icon: "🎮", basePower: 5 },
             truck: { name: "กองรถบรรทุก", icon: "🚚", basePower: 150 },
             laundry: { name: "สะดวกซัก", icon: "🧺", basePower: 850 },
             hotel: { name: "โรงแรม 5 ดาว", icon: "🏨", basePower: 5500 },
@@ -492,6 +1198,7 @@
         };
 
         const shopPrices = { truck: 5000, laundry: 25000, hotel: 150000, factory: 1000000 };
+        const TRANSACTION_TAX_RATE = 0.01; // 1% fee (should match server ECONOMY_CONFIG.transactionTaxRate)
 
         const lotteryInfo = {
             'lottery-basic': {
@@ -533,27 +1240,34 @@
         let pps = 0;
         let owned = [];
         let competitorCounts = {};
+        let userStocks = {};       // [NEW] หุ้นที่ผู้เล่นถืออยู่
+        let userStockAvgPrices = {}; // [NEW] ราคาเฉลี่ยที่ซื้อมา
+        let currentStockPrices = {}; // [NEW] ราคาหุ้นปัจจุบันจากเซิร์ฟเวอร์
+        let popularity = 0;          // [NEW] ค่าความนิยม
+        let donationTotal = 0;       // [NEW] ยอดบริจาคสะสม
+        let stocksRendered = false; // track whether we already built the DOM
         let isProcessing = false;
-        let discordId = ""; // เริ่มต้นเป็นค่าว่าง
+        let discordId = "";
+        // history for sparklines
+        let stockHistories = {}; // symbol -> array of prices
+        let stockLoading = {}; // per-symbol loading state for buy/sell buttons
+
+
 
         // --- 3. ฟังก์ชันหลัก (Core Functions) ---
-        
-        // [FIXED] ฟังก์ชันโหลดข้อมูลที่รองรับ LocalStorage
+
         async function loadData() {
             const urlParams = new URLSearchParams(window.location.search);
             const idFromUrl = urlParams.get('id');
 
-            // 1. ตรวจสอบ ID: ลำดับคือ URL > LocalStorage
             if (idFromUrl) {
                 discordId = idFromUrl;
                 localStorage.setItem('business_empire_id', discordId);
-                // ลบ ?id= ออกจาก URL เพื่อความสะอาด (Optional)
                 window.history.replaceState({}, document.title, "/");
             } else {
                 discordId = localStorage.getItem('business_empire_id');
             }
 
-            // 2. ถ้าไม่มี ID เลยจริงๆ ให้ไปหน้า Login
             if (!discordId) {
                 window.location.href = '/api/auth/discord';
                 return;
@@ -564,7 +1278,6 @@
                 const user = await res.json();
 
                 if (!user || res.status !== 200) {
-                    // ถ้า ID ในเครื่องใช้ไม่ได้/ไม่พบใน DB ให้ล้างทิ้งแล้ว Login ใหม่
                     localStorage.removeItem('business_empire_id');
                     window.location.href = '/api/auth/discord';
                     return;
@@ -573,7 +1286,24 @@
                 points = user.points;
                 pps = user.pointsPerSecond;
                 owned = user.upgrades;
+                upgradeCounts = user.upgradeCounts || {};
                 competitorCounts = user.competitorCounts || {};
+                marketStage = user.marketStage || '';
+                userStocks = user.stocks || {};               // [NEW] โหลดข้อมูลหุ้นที่ถือ
+                userStockAvgPrices = user.stockAvgPrices || {}; // [NEW] ราคาเฉลี่ยที่ซื้อ
+                popularity = user.popularity || 0;              // [NEW] ความนิยม
+                donationTotal = user.donationTotal || 0;        // [NEW] ยอดบริจาคสะสม
+                currentStockPrices = user.currentStockPrices || {}; // [NEW] โหลดราคาตลาดล่าสุด
+                stocksRendered = false; // เคลียร์ flag เวลากดรีโหลดหรือเข้ามาใหม่
+
+                // show modal with offline earnings breakdown
+                if (user.offlineEarnings && user.offlineEarnings > 0) {
+                    let msg = `คุณได้รับ ฿${Math.floor(user.offlineEarnings).toLocaleString()} ขณะออฟไลน์`;
+                    if (user.interestGain) msg += `\n(ดอกเบี้ย +฿${user.interestGain.toLocaleString()})`;
+                    if (user.upkeepDeduct) msg += `\n(ค่าบำรุง -฿${user.upkeepDeduct.toLocaleString()})`;
+                    document.getElementById('offline-earnings-amount').innerText = msg.replace(/\n/g,' ');
+                    document.getElementById('modal-offline-earnings').style.display = 'flex';
+                }
 
                 const starter = document.getElementById('starter-screen');
                 if (starter) {
@@ -581,11 +1311,64 @@
                 }
 
                 document.getElementById('display-name').innerText = user.username;
+                await fetchUserData();
+                await updateStockUI(); // [FIX] ต้อง await เพื่อให้ currentStockPrices load ก่อน
                 updateUI();
+                updateStarterGrid(); // [NEW] Update competitor counts on starter screen
+
+                // If user holds any stocks, show the first one on the candlestick chart
+                try {
+                    const ownedSymbols = Object.keys(userStocks || {}).filter(s => (userStocks[s] || 0) > 0);
+                    if (ownedSymbols.length && typeof window.setChartSymbol === 'function') {
+                        window.setChartSymbol(ownedSymbols[0]);
+                    } else if (typeof window.setChartSymbol === 'function') {
+                        // fallback: if user owns none, try to show the first available market symbol
+                        const marketSymbols = Object.keys(currentStockPrices || {});
+                        if (marketSymbols.length) window.setChartSymbol(marketSymbols[0]);
+                    }
+                } catch (e) { console.error('chart init switch error', e); }
             } catch (e) {
                 console.error("Load fail:", e);
-                // กรณี Server ล่ม หรือเน็ตหลุด ไม่ควรลบ ID ทิ้งทันที 
-                // แต่อาจจะโชว์ Alert แทน
+            }
+        }
+
+        async function fetchUserData() {
+            if (!discordId) return;
+            try {
+                const res = await fetch(`/api/user/${discordId}`);
+
+                // ✅ ตรวจสอบ HTTP status
+                if (!res.ok) {
+                    console.error('fetchUserData: HTTP', res.status);
+                    return;
+                }
+
+                const user = await res.json();
+                if (user) {
+                    points = user.points;
+                    pps = user.pointsPerSecond;
+                    owned = user.upgrades;
+                    upgradeCounts = user.upgradeCounts || {};
+                    competitorCounts = user.competitorCounts || {};
+                    userStocks = user.stocks || {};
+                    userStockAvgPrices = user.stockAvgPrices || {};
+                    popularity = user.popularity || 0;
+                    donationTotal = user.donationTotal || 0;
+                    currentStockPrices = user.currentStockPrices || {};
+
+                    // offline earnings modal rebuilt
+                    if (user.offlineEarnings && user.offlineEarnings > 0) {
+                        let msg = `คุณได้รับ ฿${Math.floor(user.offlineEarnings).toLocaleString()} ขณะออฟไลน์`;
+                        if (user.interestGain) msg += `\n(ดอกเบี้ย +฿${user.interestGain.toLocaleString()})`;
+                        if (user.upkeepDeduct) msg += `\n(ค่าบำรุง -฿${user.upkeepDeduct.toLocaleString()})`;
+                        document.getElementById('offline-earnings-amount').innerText = msg.replace(/\n/g,' ');
+                        document.getElementById('modal-offline-earnings').style.display = 'flex';
+                    }
+
+                    updateStarterGrid(); // Update competitor counts in starter screen
+                }
+            } catch (e) {
+                console.error('fetchUserData error:', e);
             }
         }
 
@@ -596,6 +1379,24 @@
             const ppsDisplay = document.getElementById('pps');
             if (ppsDisplay) ppsDisplay.innerText = `Profit: +฿${pps.toLocaleString()}/s`;
 
+            const popDisplay = document.getElementById('display-popularity');
+            if (popDisplay) popDisplay.innerText = popularity.toLocaleString();
+
+            const donDisplay = document.getElementById('display-donation');
+            if (donDisplay) donDisplay.innerText = donationTotal.toLocaleString();
+
+            // update market stage label if available
+            const stageLabel = document.getElementById('market-stage-label');
+            if (stageLabel) {
+                if (marketStage) {
+                    const pct = PRICE_FLOORS[marketStage] ? (PRICE_FLOORS[marketStage]*100).toFixed(0) : '?';
+                    stageLabel.innerText = `${marketStage} (floor ~${pct}%)`;
+                } else {
+                    stageLabel.innerText = 'กำลังโหลด...';
+                }
+            }
+
+            // อัปเดตรายการธุรกิจที่ครอบครอง
             const list = document.getElementById('active-assets-list');
             if (list) {
                 if (owned.length > 0) {
@@ -603,37 +1404,54 @@
                         const item = businessData[id] || { name: "ธุรกิจพิเศษ", icon: "💎", basePower: 0 };
                         const count = competitorCounts[id] || 1;
                         const actualPower = count > 0 ? (item.basePower / count) : item.basePower;
-
                         return `
-                            <div class="asset-item">
-                                <div class="asset-icon">${item.icon}</div>
-                                <div class="asset-name">${item.name}</div>
-                                <div class="asset-status" style="color: ${count > 1 ? 'var(--danger)' : 'var(--accent)'}">
-                                    ● ${count > 1 ? `คู่แข่ง: ${count} คน` : 'ครองตลาดคนเดียว'}
-                                </div>
-                                <div style="font-size:0.7rem; color:var(--text-dim)">
-                                    รายได้จริง: +฿${actualPower.toLocaleString()}/s
-                                </div>
-                            </div>`;
+                        <div class="asset-item">
+                            <div class="asset-icon">${item.icon}</div>
+                            <div class="asset-name">${item.name}</div>
+                            <div class="asset-status" style="color: ${count > 1 ? 'var(--danger)' : 'var(--accent)'}">
+                                ● ${count > 1 ? `คู่แข่ง: ${count} คน` : 'ครองตลาดคนเดียว'}
+                            </div>
+                            <div style="font-size:0.7rem; color:var(--text-dim)">
+                                รายได้จริง: +฿${actualPower.toLocaleString()}/s
+                            </div>
+                        </div>`;
                     }).join('');
                 } else {
                     list.innerHTML = '<p style="grid-column:1/-1; color:gray; text-align:center">ยังไม่มีธุรกิจ</p>';
                 }
             }
 
-            for (let id in shopPrices) {
-                const btn = document.getElementById('btn-' + id);
+            // อัปเดตปุ่มในร้านค้า (dynamic/progressive cost)
+            document.querySelectorAll('.biz-card[data-type]').forEach(card => {
+                const id = card.dataset.type;
+                const baseCost = Number(card.dataset.basecost) || shopPrices[id] || 0;
+                const count = upgradeCounts[id] || 0;
+                const r = 1.15;
+                const nextCost = Math.floor(baseCost * Math.pow(r, count));
+
+                const btn = card.querySelector('button');
+                const badge = card.querySelector('.owned-badge');
+                if (badge) badge.textContent = count > 0 ? `x${count}` : '';
+
                 if (btn) {
-                    if (owned.includes(id)) {
-                        btn.innerText = "ลงทุนแล้ว";
+                    // show cost plus a hint about tax
+                    const taxHint = TRANSACTION_TAX_RATE > 0 ? ` (+${Math.floor(nextCost * TRANSACTION_TAX_RATE).toLocaleString()} ภาษี)` : '';
+                    btn.innerText = `฿${nextCost.toLocaleString()}${taxHint}`;
+                    if (points < nextCost || isProcessing) {
                         btn.disabled = true;
                     } else {
-                        btn.innerText = `฿${shopPrices[id].toLocaleString()}`;
-                        btn.disabled = points < shopPrices[id] || isProcessing;
+                        btn.disabled = false;
                     }
                 }
-            }
+            });
 
+            // อัปเดตสรุปหุ้นที่ถือ (หน้าแรก)
+            renderOwnedStocks();
+
+            // [NEW] อัปเดตราคาหุ้นผ่าน interval แยกไว้แล้ว (ไม่ต้องทุกครั้งที่ updateUI)
+            //updateStockUI(); // คำสั่งนี้เคยรันบ่อยเกินไปและทำให้ DOM flicker
+
+            // อัปเดตปุ่มลอตเตอรี่
             const lotteryPrices = { 'lottery-basic': 100, tier1: 500, tier2: 50000, tier3: 5000000 };
             Object.keys(lotteryPrices).forEach(t => {
                 const btn = document.getElementById('btn-' + t);
@@ -641,7 +1459,595 @@
             });
         }
 
-        // --- 4. ระบบลอตเตอรี่ ---
+        // --- 3.5 Update Starter Grid ---
+        function updateStarterGrid() {
+            const container = document.getElementById('starter-grid-container');
+            if (!container) return;
+
+            const starterBusinesses = ['coffee', 'repair', 'vending', 'convenience', 'ramen', 'rental', 'barbershop', 'arcade'];
+
+            container.innerHTML = starterBusinesses.map(id => {
+                const biz = businessData[id] || {};
+                const count = competitorCounts[id] || 0;
+                const statusText = count === 0 ? '📊 ยังไม่มีใคร' : `👥 ${count} คน`;
+                const statusColor = count === 0 ? 'var(--accent)' : 'var(--text-dim)';
+
+                return `
+                    <div class="biz-card" onclick="chooseStarter('${id}')">
+                        <div class="badge">ฟรี</div>
+                        <span style="font-size: 2.2rem;">${biz.icon}</span>
+                        <h3 style="margin: 8px 0 4px; font-size: 0.95rem;">${biz.name}</h3>
+                        <p style="color: var(--accent); font-size: 0.8rem; margin: 0;">รายได้: +฿5/s</p>
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem; color: ${statusColor};">
+                            ${statusText}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- 4. ระบบหุ้น (Stock System) [NEW] ---
+        let stockGraphInterval = null;
+        let selectedStockSymbol = null;
+        let detailChartInterval = null;
+
+        function goBackToStocks() {
+            switchTab('tab-stocks', null);
+            if (detailChartInterval) clearInterval(detailChartInterval);
+            detailChartInterval = null;
+        }
+
+        function openStockDetail(symbol) {
+            selectedStockSymbol = symbol;
+            switchTab('tab-stock-detail', null);
+            updateDetailPage(symbol);
+
+            // เพิ่ม event listeners สำหรับอัปเดตราคา
+            const buyQtyInput = document.getElementById('detail-buy-qty');
+            const sellQtyInput = document.getElementById('detail-sell-qty');
+
+            if (buyQtyInput) {
+                buyQtyInput.oninput = () => {
+                    const qty = parseInt(buyQtyInput.value || 1) || 1;
+                    const price = currentStockPrices[symbol]?.price || 0;
+                    document.getElementById('detail-buy-total').textContent = (price * qty).toLocaleString();
+                };
+            }
+
+            if (sellQtyInput) {
+                sellQtyInput.oninput = () => {
+                    const qty = parseInt(sellQtyInput.value || 1) || 1;
+                    const price = currentStockPrices[symbol]?.price || 0;
+                    document.getElementById('detail-sell-total').textContent = (price * qty).toLocaleString();
+                };
+            }
+
+            // อัปเดตกราฟต่าง ๆ ทุก 3 วินาที
+            if (detailChartInterval) clearInterval(detailChartInterval);
+            detailChartInterval = setInterval(() => {
+                updateDetailPage(symbol);
+            }, 3000);
+        }
+
+        function updateDetailPage(symbol) {
+            if (!symbol || !currentStockPrices[symbol]) return;
+            const stock = currentStockPrices[symbol];
+            const qty = userStocks[symbol] || 0;
+            const price = stock.price || 0;
+
+            // อัปเดตข้อมูลพื้นฐาน
+            document.getElementById('detail-symbol').textContent = symbol;
+            document.getElementById('detail-price').textContent = price.toLocaleString();
+            document.getElementById('detail-owned').textContent = qty + ' หน่วย';
+            document.getElementById('detail-total').textContent = (price * qty).toLocaleString();
+            document.getElementById('detail-name').textContent = stock.name || '---';
+
+            const avgPrice = userStockAvgPrices[symbol] || 0;
+            document.getElementById('detail-avg').textContent = avgPrice > 0 ? Math.round(avgPrice).toLocaleString() : '0';
+
+            const plElem = document.getElementById('detail-pl');
+            if (qty > 0 && avgPrice > 0) {
+                const diff = price - avgPrice;
+                const percent = (diff / avgPrice) * 100;
+                const isProfit = diff >= 0;
+                plElem.textContent = `${isProfit ? '+' : ''}${percent.toFixed(2)}% (฿${Math.round(diff * qty).toLocaleString()})`;
+                plElem.style.color = isProfit ? 'var(--accent)' : 'var(--danger)';
+            } else {
+                plElem.textContent = '---';
+                plElem.style.color = 'var(--text-dim)';
+            }
+
+            // อัปเดตราคารวมสำหรับซื้อ/ขาย
+            const buyQty = parseInt(document.getElementById('detail-buy-qty')?.value || 1) || 1;
+            const sellQty = parseInt(document.getElementById('detail-sell-qty')?.value || 1) || 1;
+            document.getElementById('detail-buy-total').textContent = (price * buyQty).toLocaleString();
+            document.getElementById('detail-sell-total').textContent = (price * sellQty).toLocaleString();
+
+            // วาดกราฟ
+            drawDetailChart(symbol);
+        }
+
+        function drawDetailChart(symbol) {
+            const hist = stockHistories[symbol] || [];
+            const canvas = document.getElementById('detail-stock-chart');
+            if (!canvas || hist.length === 0) return;
+
+            // Fix blurry canvas on high-DPI displays
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = 250 * dpr;
+
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            const w = rect.width;
+            const h = 250;
+
+            ctx.clearRect(0, 0, w, h);
+
+            const max = Math.max(...hist);
+            const min = Math.min(...hist);
+            const range = max - min || 1;
+
+            // วาดเส้นกริด
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                const y = (h / 5) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+
+                const val = Math.round(max - (range / 5) * i);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.font = '10px Kanit';
+                ctx.textAlign = 'right';
+                ctx.fillText('฿' + val.toLocaleString(), w - 5, y - 2);
+            }
+
+            // วาดกราฟเส้น
+            ctx.beginPath();
+            hist.forEach((p, i) => {
+                const x = (i / Math.max(hist.length - 1, 1)) * w;
+                const y = h - ((p - min) / range) * h;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+
+            const color = hist[hist.length - 1] >= hist[0] ? '#00ff88' : '#ff4757';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+
+            // วาด fill area
+            ctx.lineTo(w, h);
+            ctx.lineTo(0, h);
+            ctx.closePath();
+            const gradient = ctx.createLinearGradient(0, 0, 0, h);
+            gradient.addColorStop(0, color + '33');
+            gradient.addColorStop(1, color + '00');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
+
+        function openStockGraph(symbol) {
+            selectedStockSymbol = symbol;
+            document.getElementById('modal-stock-symbol').textContent = symbol;
+            document.getElementById('modal-stock-graph').style.display = 'flex';
+            renderStockGraph(symbol);
+            // อัปเดตกราฟทุก 5 วินาที
+            if (stockGraphInterval) clearInterval(stockGraphInterval);
+            stockGraphInterval = setInterval(() => {
+                renderStockGraph(symbol);
+            }, 5000);
+        }
+
+        function closeStockGraph() {
+            const modal = document.getElementById('modal-stock-graph');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            selectedStockSymbol = null;
+            if (stockGraphInterval) clearInterval(stockGraphInterval);
+            stockGraphInterval = null;
+        }
+
+        window.openStockGraph = openStockGraph;
+        window.closeStockGraph = closeStockGraph;
+
+        // [NEW] Render stock price graph in modal
+        async function renderStockGraph(symbol) {
+            const container = document.getElementById('stock-graph-container');
+            if (!container) return;
+            container.innerHTML = '';
+            // Responsive canvas size
+            const width = container.offsetWidth || 320;
+            // Height: use CSS height or fallback
+            const height = parseInt(window.getComputedStyle(container).height) || 180;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            container.appendChild(canvas);
+            const ctx = canvas.getContext('2d');
+            // Fetch history
+            try {
+                const res = await fetch(`/api/stock/history/${symbol}`);
+                const data = await res.json();
+                const history = data.history || [];
+                if (history.length < 2) {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '16px Kanit, sans-serif';
+                    ctx.fillText('ไม่มีข้อมูลกราฟ', 20, 60);
+                    return;
+                }
+                // Find min/max
+                const min = Math.min(...history);
+                const max = Math.max(...history);
+                // Padding
+                const padX = 30, padY = 20;
+                const w = canvas.width - padX * 2;
+                const h = canvas.height - padY * 2;
+                // Draw axis
+                ctx.strokeStyle = '#888';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(padX, padY);
+                ctx.lineTo(padX, padY + h);
+                ctx.lineTo(padX + w, padY + h);
+                ctx.stroke();
+                // Draw graph
+                ctx.strokeStyle = '#00ff88';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                history.forEach((price, i) => {
+                    const x = padX + (i / (history.length - 1)) * w;
+                    const y = padY + h - ((price - min) / (max - min || 1)) * h;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+                // Draw min/max labels
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Kanit, sans-serif';
+                ctx.fillText(`สูงสุด: ฿${max.toLocaleString()}`, padX, padY + 12);
+                ctx.fillText(`ต่ำสุด: ฿${min.toLocaleString()}`, padX, padY + h - 4);
+            } catch (e) {
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Kanit, sans-serif';
+                ctx.fillText('โหลดข้อมูลผิดพลาด', 20, 60);
+            }
+        }
+        async function updateStockUI() {
+            // รีเฟรชราคาหุ้นทุก 5 วินาที: บิลด์ DOM ครั้งแรกแล้วใช้ patch ต่อ
+            try {
+                const res = await fetch('/api/stocks');
+                if (!res.ok) {
+                    console.error('Failed to fetch stocks: HTTP', res.status);
+                    return;
+                }
+                const newPrices = await res.json();
+                currentStockPrices = newPrices;
+
+                // update history arrays
+                Object.keys(newPrices).forEach(symbol => {
+                    const price = newPrices[symbol].price;
+                    if (!stockHistories[symbol]) stockHistories[symbol] = [];
+                    stockHistories[symbol].push(price);
+                    if (stockHistories[symbol].length > 50) stockHistories[symbol].shift();
+                });
+
+                // ถ้ายังไม่เคย render ให้สร้างทั้งหมดและตั้งธง
+                const container = document.getElementById('stock-list-container');
+                if (!stocksRendered) {
+                    renderStockList();
+                    stocksRendered = true;
+                    renderOwnedStocks();
+                    return; // หลังจากเรนเดอร์แล้วไม่ต้อง patch รอบนี้
+                }
+
+                // ปรับปรุงแต่ละไอเท็มที่มีอยู่
+                Object.keys(newPrices).forEach(symbol => {
+                    const stock = newPrices[symbol];
+                    const priceEl = document.getElementById(`price-${symbol}`);
+                    if (priceEl) priceEl.innerText = stock.price.toLocaleString();
+                    const qtyInput = document.getElementById(`qty-${symbol}`);
+                    const totalEl = document.getElementById(`total-${symbol}`);
+                    if (qtyInput) {
+                        const qty = parseInt(qtyInput.value) || 1;
+                        totalEl.innerText = (stock.price * qty).toLocaleString();
+                        qtyInput.max = userStocks[symbol] || 0; // update max whenever owned changes
+                    }
+                    const ownedEl = document.getElementById(`owned-${symbol}`);
+                    if (ownedEl) ownedEl.innerText = userStocks[symbol] || 0;
+                    // ปรับสถานะปุ่มซื้อ/ขาย หากจำเป็น
+                    const buyBtn = document.getElementById(`buy-btn-${symbol}`);
+                    const sellBtn = document.getElementById(`sell-btn-${symbol}`);
+                    if (buyBtn) {
+                        buyBtn.disabled = points < (stock.price * (parseInt(qtyInput?.value) || 1)) || isProcessing;
+                    }
+                    if (sellBtn) {
+                        sellBtn.disabled = (userStocks[symbol] || 0) < (parseInt(qtyInput?.value) || 1) || isProcessing;
+                    }
+                });
+                // redraw owned stocks sparklines after patch
+                renderOwnedStocks();
+            } catch (e) {
+                console.error('Failed to fetch stocks:', e);
+            }
+        }
+
+        // --- owned stocks on main page ---
+        function renderOwnedStocks() {
+            const container = document.getElementById('owned-stocks-container');
+            if (!container) return;
+            const validStocks = ['BTC', 'ETH', 'AAPL', 'TSLA', 'AMD', 'NOK', 'RIOT', 'MARA', 'CLSK'];
+            const symbols = Object.keys(userStocks).filter(s => userStocks[s] > 0 && validStocks.includes(s));
+            if (symbols.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-dim); text-align:center; padding:15px; font-size:0.95rem;">📭 ยังไม่มีหุ้นในพอร์ต</p>';
+                return;
+            }
+            container.innerHTML = symbols.map(symbol => {
+                const qty = userStocks[symbol] || 0;
+                const price = currentStockPrices[symbol]?.price || 0;
+                const avgPrice = userStockAvgPrices[symbol] || price; // fallback
+                const total = price * qty;
+
+                let perfHtml = '';
+                if (avgPrice > 0) {
+                    const percentChange = ((price - avgPrice) / avgPrice) * 100;
+                    const isProfit = percentChange >= 0;
+                    const sign = isProfit ? '+' : '';
+                    const color = isProfit ? 'var(--accent)' : 'var(--danger)';
+                    perfHtml = `<div style="font-size: 0.8rem; color: ${color}; font-weight: 500;">Avg: ฿${Math.round(avgPrice).toLocaleString()} (${sign}${percentChange.toFixed(2)}%)</div>`;
+                }
+
+                return `
+                    <div class="owned-stock-card" onclick="openStockDetail('${symbol}')" style="cursor: pointer;">
+                        <div class="owned-stock-info" style="flex: 1;">
+                            <strong>${symbol}</strong>
+                            <div style="color: var(--secondary); font-weight: 600;">× ${qty} | ฿${total.toLocaleString()}</div>
+                            ${perfHtml}
+                        </div>
+                        <canvas id="spark-${symbol}" class="sparkline" width="100" height="36"></canvas>
+                        <div class="owned-stock-buttons" onclick="event.stopPropagation();">
+                            <button class="mini-btn" style="padding:8px 12px; font-size:0.8rem; min-height:auto; flex:1; background: linear-gradient(135deg, rgba(0, 255, 136, 0.2) 0%, rgba(0, 150, 80, 0.15) 100%); border-color: rgba(0, 255, 136, 0.5); color: var(--accent);" onclick="tradeStock('${symbol}','buy',1)">ซื้อ</button>
+                            <button class="mini-btn" style="padding:8px 12px; font-size:0.8rem; min-height:auto; flex:1; background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(200, 50, 50, 0.15) 100%); border-color: rgba(255, 71, 87, 0.5); color: #ff4757;" onclick="tradeStock('${symbol}','sell',1)">ขาย</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            // draw sparklines
+            symbols.forEach(symbol => drawSparkline(symbol));
+        }
+
+        function drawSparkline(symbol) {
+            const hist = stockHistories[symbol] || [];
+            const canvas = document.getElementById(`spark-${symbol}`);
+            if (!canvas || hist.length === 0) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            const max = Math.max(...hist);
+            const min = Math.min(...hist);
+            ctx.beginPath();
+            hist.forEach((p, i) => {
+                const x = (i / (hist.length - 1)) * w;
+                const y = h - ((p - min) / (max - min || 1)) * h;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            // choose color based on trend
+            const color = hist[hist.length - 1] >= hist[0] ? '#0f0' : '#f00';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            // draw last price label
+            ctx.fillStyle = '#fff';
+            ctx.font = '8px Kanit';
+            ctx.textAlign = 'right';
+            ctx.fillText(`฿${hist[hist.length - 1].toLocaleString()}`, w - 2, 10);
+        }
+
+        function renderStockList() {
+            const container = document.getElementById('stock-list-container');
+            if (!container) return;
+
+            // ✅ ตรวจสอบว่า currentStockPrices ไม่ว่าง
+            if (!currentStockPrices || Object.keys(currentStockPrices).length === 0) {
+                container.innerHTML = '<div style="grid-column:1/-1; color:var(--text-dim); text-align:center; padding:20px; font-size:0.95rem;">⏳ กำลังโหลดข้อมูลหุ้น...</div>';
+                return;
+            }
+
+            const validStocks = ['BTC', 'ETH', 'AAPL', 'TSLA', 'AMD', 'NOK', 'RIOT', 'MARA', 'CLSK'];
+            container.innerHTML = Object.keys(currentStockPrices).filter(symbol => validStocks.includes(symbol)).map(symbol => {
+                const stock = currentStockPrices[symbol];
+                const owned = userStocks[symbol] || 0;
+                const quantity = parseInt(document.getElementById(`qty-${symbol}`)?.value || 1) || 1;
+                const totalCost = stock.price * quantity;
+                const loading = !!stockLoading[symbol];
+                const buyDisabled = points < totalCost || isProcessing || loading || quantity <= 0;
+                const sellDisabled = owned < quantity || isProcessing || loading || quantity <= 0;
+
+                return `
+            <div class="stock-card" onclick="openStockDetail('${symbol}')">
+                <div style="flex: 1; position: relative; z-index: 1; cursor: pointer;">
+                    <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
+                        <div style="font-weight: 700; font-size: 1.1rem; color: #fff;">${symbol}</div>
+                        <div style="font-size: 0.85rem; color: var(--text-dim);">${stock.name}</div>
+                    </div>
+                    <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+                        <span style="font-weight: 600; color: var(--secondary); font-size: 1.15rem;">฿<span id="price-${symbol}" class="stock-price">${stock.price.toLocaleString()}</span></span>
+                        <small style="color: var(--text-dim); font-size: 0.8rem;">ราคา</small>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.04); padding: 8px 10px; border-radius: 10px; margin-bottom: 10px; display: inline-block;">
+                        <div style="color: var(--accent); font-weight: 600; font-size: 0.9rem;">💎 ถือครอง: <span id="owned-${symbol}" style="color: #fff;">${owned}</span> หน่วย</div>
+                        ${(() => {
+                        if (owned > 0 && userStockAvgPrices[symbol]) {
+                            const avg = userStockAvgPrices[symbol];
+                            const diff = stock.price - avg;
+                            const pct = (diff / avg) * 100;
+                            const c = diff >= 0 ? 'var(--accent)' : 'var(--danger)';
+                            return `<div style="font-size: 0.75rem; color: ${c}; margin-top: 4px;">Avg: ฿${Math.round(avg).toLocaleString()} (${diff >= 0 ? '+' : ''}${pct.toFixed(2)}%)</div>`;
+                        }
+                        return '';
+                    })()}
+                    </div>
+                </div>
+                <div class="trade-btn-group" style="position: relative; z-index: 1;" onclick="event.stopPropagation();">
+                    <button class="mini-btn" onclick="openStockDetail('${symbol}')" ${isProcessing ? 'disabled' : ''}>📊 ดูรายละเอียด</button>
+                </div>
+            </div>
+        `;
+            }).join('');
+        }
+
+        // helper to refresh buy/sell button disabled/text state for a specific symbol
+        function updateStockButtons(symbol) {
+            const loading = !!stockLoading[symbol];
+            const buyBtn = document.getElementById(`buy-btn-${symbol}`);
+            const sellBtn = document.getElementById(`sell-btn-${symbol}`);
+            const qtyInput = document.getElementById(`qty-${symbol}`);
+            const stock = currentStockPrices[symbol] || { price: 0 };
+            const owned = userStocks[symbol] || 0;
+            const qty = parseInt(qtyInput?.value || 1) || 1;
+            if (buyBtn) {
+                const cost = stock.price * qty;
+                const taxCost = Math.floor(cost * TRANSACTION_TAX_RATE);
+                buyBtn.disabled = points < cost + taxCost || isProcessing || loading || qty <= 0;
+                buyBtn.innerText = loading ? '...' : 'ซื้อ';
+                if (!buyBtn.disabled) {
+                    buyBtn.title = TRANSACTION_TAX_RATE > 0 ? `รวมภาษี ${Math.round(TRANSACTION_TAX_RATE*100)}% (฿${taxCost.toLocaleString()})` : '';
+                } else {
+                    buyBtn.title = '';
+                }
+            }
+            if (sellBtn) {
+                sellBtn.disabled = owned < qty || isProcessing || loading || qty <= 0;
+                sellBtn.innerText = loading ? '...' : 'ขาย';
+            }
+        }
+
+        async function tradeStock(symbol, action, forcedQuantity = null) {
+            if (isProcessing) return; // กันกดซ้ำ
+
+            // ✅ ถ้ามีค่าที่ส่งเข้า (เช่นจากหน้าแรก) ให้ใช้เลย
+            let quantity;
+            if (forcedQuantity !== null && !isNaN(forcedQuantity)) {
+                quantity = Number(forcedQuantity);
+            } else {
+                // พยายามหา quantity จากหน้า detail ก่อน
+                const detailQtyId = action === 'buy' ? 'detail-buy-qty' : 'detail-sell-qty';
+                const detailQtyInput = document.getElementById(detailQtyId);
+                if (detailQtyInput?.value) {
+                    quantity = parseInt(detailQtyInput.value) || 1;
+                } else {
+                    // ดึงค่า quantity จากช่อง input ตลาดทั่วไป (fallback = 1)
+                    const qtyInputElem = document.getElementById(`qty-${symbol}`);
+                    quantity = parseInt(qtyInputElem?.value || 1) || 1;
+                }
+            }
+
+            // ✅ ป้องกันทรานแซกชันขายมากกว่าที่มี
+            if (action === 'sell') {
+                const ownedAmt = userStocks[symbol] || 0;
+                if (quantity > ownedAmt) {
+                    quantity = ownedAmt;
+                    const qtyInputElem = document.getElementById(`qty-${symbol}`);
+                    if (qtyInputElem) qtyInputElem.value = quantity;
+                }
+            }
+
+            // ✅ Validation
+            if (quantity <= 0) {
+                alert('กรุณากรอกจำนวนที่มากกว่า 0');
+                return;
+            }
+
+            // separate loading state for this symbol
+            stockLoading[symbol] = true;
+            updateStockButtons(symbol);
+
+            isProcessing = true; // still block global actions if needed
+
+            try {
+                const res = await fetch('/api/stock/trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        discordId,
+                        symbol,
+                        action,
+                        quantity
+                    })
+                });
+
+                const data = await res.json();
+
+                // ✅ ตรวจสอบ HTTP status
+                if (!res.ok) {
+                    console.error('HTTP Error:', res.status, data);
+                    alert(data.message || `เกิดข้อผิดพลาด: ${res.status}`);
+                    return;
+                }
+
+                if (data.success) {
+                    // ✅ Optimistic Update: อัปเดตค่าในตัวแปร Local ทันที ไม่ต้องรอ loadData
+                    points = data.newPoints;
+                    if (data.stockQty !== undefined) {
+                        userStocks[symbol] = data.stockQty;
+                    } else if (data.stocks) {
+                        userStocks = data.stocks;
+                    }
+                    if (data.stockAvgPrices) {
+                        userStockAvgPrices = data.stockAvgPrices;
+                    }
+
+                    // update qty input max right away
+                    const qtyInputElem = document.getElementById(`qty-${symbol}`);
+                    if (qtyInputElem) qtyInputElem.max = userStocks[symbol] || 0;
+
+                    // ✅ อัปเดตเฉพาะตัวเลขและรายการหุ้น ไม่ต้อง call updateUI() ที่ซ้ำซ้อน
+                    if (document.getElementById('points')) {
+                        document.getElementById('points').innerText = `฿${Math.floor(points).toLocaleString()}`;
+                    }
+                    // show tax message if provided
+                    if (data.tax) {
+                        alert(`หักภาษี ฿${data.tax.toLocaleString()} จากการ${action === 'buy' ? 'ซื้อ' : 'ขาย'}`);
+                    }
+
+                    // อัปเดตหน้าหุ้นถ้ามีการแสดงอยู่
+                    if (document.getElementById('tab-stocks')?.classList.contains('active')) {
+                        renderStockList();
+                    }
+                    // อัปเดตสรุปหุ้นที่ถือบนหน้าแรก
+                    renderOwnedStocks();
+                } else {
+                    console.error('Trade failed:', data);
+                    // log details if provided
+                    if (data.details) console.warn('stock details:', data.details);
+                    alert(data.message || "การเทรดล้มเหลว");
+                }
+            } catch (e) {
+                console.error("Trade Error:", e);
+                alert("เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว กรุณาลองใหม่");
+            } finally {
+                // ✅ สำคัญมาก: ไม่ว่าจะสำเร็จหรือพัง ต้องปลดล็อคปุ่มเสมอ
+                stockLoading[symbol] = false;
+                updateStockButtons(symbol);
+
+                isProcessing = false;
+                // ✅ ปลดล็อคปุ่มทันที โดยไม่ต้องวาด UI ทั้งหมด
+                updateUI();
+            }
+        }
+
+        // --- 5. ระบบลอตเตอรี่ (Lottery System) ---
         function showLotteryInfo(tier) {
             const config = lotteryInfo[tier];
             if (!config) return;
@@ -656,12 +2062,16 @@
             html += `<table style="width:100%; font-size:0.85rem; border-collapse:collapse;">`;
             config.prizes.forEach(p => {
                 html += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                    <td style="text-align:left; padding:5px 0;">${p.n}</td>
-                    <td style="color:${config.color}; text-align:center;">${p.a}</td>
-                    <td style="text-align:right; color:var(--accent);">${p.p}</td>
-                </tr>`;
+                <td style="text-align:left; padding:5px 0;">${p.n}</td>
+                <td style="color:${config.color}; text-align:center;">${p.a}</td>
+                <td style="text-align:right; color:var(--accent);">${p.p}</td>
+            </tr>`;
             });
             html += `</table>`;
+            // tax note
+            if (TRANSACTION_TAX_RATE > 0) {
+                html += `<div style="color:var(--text-dim); font-size:0.8rem; margin-top:8px;">จะถูกหักภาษี ${Math.round(TRANSACTION_TAX_RATE*100)}% จากเงินรางวัล</div>`;
+            }
             infoDisplay.innerHTML = html;
         }
 
@@ -695,22 +2105,25 @@
                         document.getElementById('lottery-result-title').innerText = result.name;
                         document.getElementById('lottery-result-title').style.color = data.color || 'var(--secondary)';
                         document.getElementById('lottery-result-desc').innerHTML = `
-                            <div style="margin: 10px 0;">
-                                <h2 style="color:var(--accent); margin:0;">+ ฿${result.winAmount.toLocaleString()}</h2>
-                                <div style="color:var(--danger); font-size:0.8rem; margin-top:5px;">
-                                    (ค่าธรรมเนียม: ฿${data.ticketPricePaid.toLocaleString()})
-                                </div>
-                            </div>`;
+                        <div style="margin: 10px 0;">
+                            <h2 style="color:var(--accent); margin:0;">+ ฿${result.winAmount.toLocaleString()}</h2>
+                            <div style="color:var(--danger); font-size:0.8rem; margin-top:5px;">
+                                (ค่าธรรมเนียม: ฿${data.ticketPricePaid.toLocaleString()})
+                                ${result.tax ? `<br>หักภาษี: ฿${result.tax.toLocaleString()}` : ''}
+                            </div>
+                        </div>`;
                         points = data.newPoints;
                         isProcessing = false;
                         updateUI();
                     }, 1000);
                 } else {
                     alert(data.message);
+                    isProcessing = false;
                     closeLotteryModal();
                 }
             } catch (e) {
-                console.error(e);
+                console.error('Lottery error:', e);
+                isProcessing = false;
                 closeLotteryModal();
             }
         }
@@ -721,40 +2134,175 @@
             updateUI();
         }
 
-        // --- 5. ฟังก์ชันสนับสนุน ---
+        // --- 6. ฟังก์ชันสนับสนุน (UI & Data) ---
         function switchTab(tabId, btn) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
-            btn.classList.add('active');
+            if (btn) {
+                btn.classList.add('active');
+            } else {
+                // หาปุ่มที่เกี่ยวข้องจาก tab ID
+                const btnMap = {
+                    'tab-main': 'nav-main',
+                    'tab-stocks': 'nav-stocks',
+                    'tab-stock-detail': 'nav-stocks',  // ให้ stock detail ใช้ปุ่มเดียวกับ stocks
+                    'tab-shop': 'nav-shop',
+                    'tab-leaderboard': 'nav-leaderboard',
+                    'tab-settings': 'nav-settings'
+                };
+                const navId = btnMap[tabId];
+                if (navId) {
+                    const navBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.textContent.includes(
+                        tabId === 'tab-main' ? '🏠' :
+                            tabId === 'tab-stocks' || tabId === 'tab-stock-detail' ? '📈' :
+                                tabId === 'tab-shop' ? '🛍️' :
+                                    tabId === 'tab-leaderboard' ? '🏆' :
+                                        '⚙️'
+                    ));
+                    if (navBtn) navBtn.classList.add('active');
+                }
+            }
             if (tabId === 'tab-leaderboard') loadLeaderboard();
         }
 
         async function loadLeaderboard() {
             const list = document.getElementById('leaderboard-list');
-            list.innerHTML = 'กำลังโหลด...';
+            list.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-dim); font-size:0.9rem;">⏳ กำลังจัดลำดับมหาเศรษฐี...</div>';
+
             try {
                 const res = await fetch('/api/leaderboard');
                 const data = await res.json();
-                list.innerHTML = data.map((p, i) => `
-                    <div class="leaderboard-item" style="${p.discordId === discordId ? 'border:1px solid gold' : ''}">
-                        <span>${i + 1}</span>
-                        <div style="flex-grow:1"><strong>${p.username}</strong></div>
-                        <div style="color:var(--accent)">฿${Math.floor(p.points).toLocaleString()}</div>
-                    </div>`).join('');
-            } catch (e) { list.innerHTML = 'ไม่สามารถโหลดข้อมูลได้'; }
+
+                list.innerHTML = data.map((p, i) => {
+                    const isMe = p.discordId === discordId;
+                    const avatarUrl = p.avatar
+                        ? `https://cdn.discordapp.com/avatars/${p.discordId}/${p.avatar}.png`
+                        : 'https://cdn.discordapp.com/embed/avatars/0.png';
+
+                    // กำหนดสีตามลำดับ 1, 2, 3
+                    let rankColor = 'var(--text-dim)';
+                    let rankIcon = '';
+                    if (i === 0) { rankColor = '#FFD700'; rankIcon = '🥇'; }
+                    else if (i === 1) { rankColor = '#C0C0C0'; rankIcon = '🥈'; }
+                    else if (p.i === 2) { rankColor = '#CD7F32'; rankIcon = '🥉'; }
+
+                    return `
+                <div class="leaderboard-item" style="${isMe ? 'border: 1px solid var(--secondary); background: rgba(212, 175, 55, 0.08);' : ''}">
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                        <div style="width: 28px; text-align: center; font-weight: bold; color: ${rankColor}; font-size: 1.1rem;">
+                            ${rankIcon || i + 1}
+                        </div>
+                        <div style="position: relative;">
+                            <img src="${avatarUrl}" style="width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: block;">
+                            ${isMe ? '<div style="position:absolute; bottom:-4px; right:-4px; background:var(--secondary); width:12px; height:12px; border-radius:50%; border:2px solid var(--bg);"></div>' : ''}
+                        </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-weight: 600; font-size: 0.95rem; color: ${isMe ? 'var(--secondary)' : 'var(--text-main)'};">
+                                ${p.username} ${isMe ? '<small style="font-weight:normal; opacity:0.7;">(คุณ)</small>' : ''}
+                            </span>
+                            <small style="color: var(--text-dim); font-size: 0.75rem;">ID: ${p.discordId.substring(0, 8)}...</small>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="color: var(--accent); font-weight: bold; font-size: 1.05rem;">฿${Math.floor(p.points).toLocaleString()}</div>
+                        <div style="font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;">Net Worth</div>
+                        <div style="color: #f1c40f; font-size: 0.75rem; margin-top: 2px;">🌟 Popularity: ${p.popularity || 0}</div>
+                    </div>
+                </div>`;
+                }).join('');
+
+            } catch (e) {
+                list.innerHTML = '<div style="text-align:center; padding:30px; color:var(--danger);">❌ โหลดข้อมูลไม่สำเร็จ</div>';
+            }
+        }
+        // --- 3.9 ฟังก์ชันบริจาค (Donate) ---
+        async function donateMoney() {
+            if (isProcessing) return;
+
+            const input = document.getElementById('donate-amount');
+            const amount = Math.floor(Number(input.value));
+
+            if (!amount || amount <= 0) {
+                alert('กรุณากรอกจำนวนเงินให้ถูกต้อง');
+                return;
+            }
+
+            if (points < amount) {
+                alert('เงินไม่พอสำหรับการบริจาค');
+                return;
+            }
+
+            isProcessing = true;
+            try {
+                const res = await fetch('/api/donate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discordId, amount })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    points = data.points;
+                    popularity = data.popularity;
+                    donationTotal = data.donationTotal;
+
+                    input.value = ''; // เคลียร์ช่อง
+                    updateUI();
+
+                    // ปล่อยให้ระบบอัปเดต PPS จากเซิร์ฟเวอร์ในการดึงข้อมูลรอบถัดไปอัตโนมัติ (หรือดึงใหม่เลย)
+                    fetchUserData();
+
+                    // แสดงเอฟเฟกต์ หรือแจ้งเตือน
+                    alert(`🙏 ขอบคุณสำหรับการบริจาค!\nค่าความนิยมของคุณตอนนี้คือ ${popularity}`);
+                } else {
+                    alert(data.message || 'เกิดข้อผิดพลาดในการบริจาค');
+                }
+            } catch (error) {
+                console.error('Error donating:', error);
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            } finally {
+                isProcessing = false;
+            }
         }
 
         async function buyUpgrade(type) {
             if (isProcessing) return;
-            const res = await fetch('/api/buy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ discordId, upgradeType: type })
-            });
-            const data = await res.json();
-            if (data.success) await loadData();
-            else alert(data.message);
+            isProcessing = true;
+            try {
+                // ask for quantity if repeatable
+                let qty = 1;
+                if (upgradeCounts && upgradeCounts[type] > 0) {
+                    const ans = prompt('จำนวนที่ต้องการซื้อ','1');
+                    qty = Math.max(1, parseInt(ans) || 1);
+                }
+                const res = await fetch('/api/buy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discordId, upgradeType: type, quantity: qty })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (data.totalWithTax !== undefined) {
+                        let msg = `ซื้อสำเร็จ! ใช้ไป ฿${data.totalWithTax.toLocaleString()}`;
+                        if (data.tax) msg += ` (หักภาษี ฿${data.tax.toLocaleString()})`;
+                        alert(msg);
+                    } else if (data.costPaid !== undefined && data.costPaid > 0) {
+                        alert(`ซื้อสำเร็จ! ใช้ไป ฿${data.costPaid.toLocaleString()} (รวมค่าธรรมเนียม)`);
+                    }
+                    await loadData();
+                } else {
+                    alert(data.message);
+                    updateUI();
+                }
+            } catch (e) {
+                console.error('Buy upgrade error:', e);
+                alert('เกิดข้อผิดพลาดในการลงทุน');
+                updateUI();
+            } finally {
+                isProcessing = false;
+            }
         }
 
         async function chooseStarter(type) {
@@ -787,26 +2335,207 @@
             }
         }
 
-        // --- 6. Game Loop & Auto-Save ---
+        // --- 7. Game Loop & Auto-Save ---
+        // อัปเดตคะแนนทุก 100ms (ไม่เรียก updateUI ทั้งชุดเพื่อหลีกเลี่ยง re-render)
         setInterval(() => {
             if (pps > 0 && !isProcessing) {
                 points += (pps / 10);
-                updateUI();
+                // ปรับเฉพาะตัวเลขคะแนนและ pps เท่านั้น
+                const ptsEl = document.getElementById('points');
+                if (ptsEl) ptsEl.innerText = `฿${Math.floor(points).toLocaleString()}`;
+                const ppsEl = document.getElementById('pps');
+                if (ppsEl) ppsEl.innerText = `Profit: +฿${pps.toLocaleString()}/s`;
             }
         }, 100);
 
+        // เซฟความก้าวหน้าและอัปเดตราคาหุ้นทุก 10 วินาที
         setInterval(() => {
-            // [FIXED] เพิ่มการตรวจสอบ discordId ก่อนเซฟ
             if (discordId && pps > 0 && !isProcessing) {
                 fetch('/api/save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ discordId, points })
+                    body: JSON.stringify({
+                        discordId,
+                        points,
+                        stocks: userStocks,   // save portfolio
+                        pointsPerSecond: pps // keep PPS in sync
+                    })
                 });
             }
         }, 10000);
 
+        // อัปเดตราคาหุ้นทุก 5 วินาที (เฉพาะเมื่อหน้าหุ้นเปิดอยู่)
+        setInterval(() => {
+            if (document.getElementById('tab-stocks')?.classList.contains('active')) {
+                updateStockUI();
+            }
+        }, 5000);
+
+        // --- 8. Offline Progress (Local Tab Switch) ---
+        let lastBackgroundTime = 0;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                lastBackgroundTime = Date.now();
+            } else if (document.visibilityState === 'visible' && lastBackgroundTime > 0) {
+                // คำนวณเวลาที่หายไปจากการสลับแท็บ
+                const now = Date.now();
+                const diffSeconds = Math.max(0, Math.floor((now - lastBackgroundTime) / 1000));
+                lastBackgroundTime = 0;
+
+                if (diffSeconds > 1 && pps > 0) {
+                    const offlineLocalEarnings = diffSeconds * pps;
+                    points += offlineLocalEarnings;
+
+                    // ปรับอัปเดตตัวเลขแสดงผล
+                    const ptsEl = document.getElementById('points');
+                    if (ptsEl) ptsEl.innerText = `฿${Math.floor(points).toLocaleString()}`;
+
+                    console.log(`Earned ฿${offlineLocalEarnings.toLocaleString()} while in background (${diffSeconds}s)`);
+                }
+            }
+        });
+
         window.onload = loadData;
+    </script>
+    <!-- Lightweight Charts (candlestick) -->
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        (function () {
+            const detailContainer = document.getElementById('candlestick-chart-detail');
+            if (!detailContainer) return;
+
+            function createChart(container, height) {
+                const w = container.clientWidth || window.innerWidth * 0.9;
+                const ch = LightweightCharts.createChart(container, {
+                    width: w,
+                    height: height,
+                    layout: { background: '#0b0c0d', textColor: '#ffffff' },
+                    grid: { vertLines: { color: 'rgba(255,255,255,0.03)' }, horzLines: { color: 'rgba(255,255,255,0.03)' } },
+                    timeScale: { borderColor: 'rgba(255,255,255,0.06)' }
+                });
+                const series = ch.addCandlestickSeries({
+                    upColor: '#00ff88', downColor: '#ff4757', borderUpColor: '#00cc6f', borderDownColor: '#ff3838', wickUpColor: '#00ff88', wickDownColor: '#ff4757'
+                });
+                return { ch, series };
+            }
+
+            const charts = { detail: null };
+            let chartInitialized = false;
+            let currentSymbol = 'BTC';
+            let lastTimestamp = 0;
+            let pollIntervalId = null;
+
+            async function fetchOHLC(symbol) {
+                try {
+                    const resp = await fetch(`/api/stock/ohlc/${encodeURIComponent(symbol)}?range=1d&interval=5m`);
+                    if (!resp.ok) throw new Error('Fetch failed');
+                    const json = await resp.json();
+                    if (!json || !json.data) return [];
+
+                    let data = json.data.map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close }));
+
+                    // Scale OHLC to match game's THB pricing
+                    // Get game's current price for this symbol
+                    const gamePrice = currentStockPrices?.[symbol]?.price || null;
+                    if (data.length && gamePrice) {
+                        // Get the latest (or closest) Yahoo price to calculate scale factor
+                        const yahooCurrentPrice = data[data.length - 1]?.close || data[0]?.close;
+                        if (yahooCurrentPrice && yahooCurrentPrice > 0) {
+                            const scaleFactor = gamePrice / yahooCurrentPrice;
+                            // Apply scale to all OHLC values
+                            data = data.map(d => ({
+                                time: d.time,
+                                open: Math.round(d.open * scaleFactor),
+                                high: Math.round(d.high * scaleFactor),
+                                low: Math.round(d.low * scaleFactor),
+                                close: Math.round(d.close * scaleFactor)
+                            }));
+                        }
+                    }
+
+                    return data;
+                } catch (err) {
+                    console.error('fetchOHLC error', err);
+                    return [];
+                }
+            }
+
+            // Lazy initialize chart when detail tab is shown and container has proper dimensions
+            function ensureChartInit() {
+                if (chartInitialized) return;
+                if (!detailContainer || detailContainer.clientWidth === 0) {
+                    // Container not ready yet, try again in 100ms
+                    setTimeout(ensureChartInit, 100);
+                    return;
+                }
+                try {
+                    charts.detail = createChart(detailContainer, 360);
+                    chartInitialized = true;
+                    loadAndRender(currentSymbol);
+                    console.log('Chart initialized successfully');
+                } catch (err) {
+                    console.error('Chart init error:', err);
+                    setTimeout(ensureChartInit, 200);
+                }
+            }
+
+            async function loadAndRender(symbol) {
+                if (!chartInitialized && !charts.detail) return;
+                const data = await fetchOHLC(symbol);
+                if (data.length && charts.detail) {
+                    charts.detail.series.setData(data);
+                    lastTimestamp = data[data.length - 1].time;
+                }
+            }
+
+            window.setChartSymbol = function (sym) {
+                if (!sym) return;
+                try {
+                    currentSymbol = sym;
+                    if (chartInitialized && charts.detail) {
+                        loadAndRender(sym);
+                    }
+                } catch (e) { console.error('setChartSymbol error', e); }
+            };
+
+            async function pollLatest(symbol) {
+                if (!chartInitialized || !charts.detail) return;
+                try {
+                    const data = await fetchOHLC(symbol);
+                    if (!data || data.length === 0) return;
+                    const last = data[data.length - 1];
+                    if (!last) return;
+                    if (last.time > lastTimestamp) {
+                        charts.detail.series.update(last);
+                        lastTimestamp = last.time;
+                    } else if (last.time === lastTimestamp) {
+                        charts.detail.series.update(last);
+                    }
+                } catch (err) { console.error('pollLatest error', err); }
+            }
+
+            // Start polling (safeguard: will do nothing if chart not initialized)
+            pollIntervalId = setInterval(() => { pollLatest(currentSymbol); }, 5000);
+
+            window.addEventListener('resize', function () {
+                if (chartInitialized && charts.detail) {
+                    charts.detail.ch.resize(detailContainer.clientWidth, 360);
+                }
+            });
+
+            // Wrap openStockDetail to initialize chart when detail view is opened
+            const origOpen = window.openStockDetail;
+            if (typeof origOpen === 'function') {
+                window.openStockDetail = function (sym) {
+                    try { origOpen(sym); } catch (e) { console.error(e); }
+                    try {
+                        currentSymbol = sym;
+                        ensureChartInit();
+                        setTimeout(() => loadAndRender(currentSymbol), 150);
+                    } catch (err) { console.error('chart switch error', err); }
+                };
+            }
+        })();
     </script>
 </body>
 
