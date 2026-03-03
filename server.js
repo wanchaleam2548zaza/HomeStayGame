@@ -19,8 +19,9 @@ const STOCK_LIST = {
 };
 let STOCK_PRICES = { ...STOCK_LIST };
 let STOCK_HISTORY = {}; // เก็บกราฟราคาหุ้นย้อนหลังไว้เป็น Array
-// volatility factor (fraction) used when randomizing prices; can be overridden via env var
-const VOLATILITY = parseFloat(process.env.STOCK_VOLATILITY) || 0.8; // default ผันผวนแรงขึ้นเป็น ±40%
+// volatility percent (fraction) used when randomizing prices; can be overridden via env var
+// e.g. 0.01 = 1% per tick, 0.02 = 2% per tick
+const VOLATILITY_PERCENT = parseFloat(process.env.STOCK_VOLATILITY_PERCENT) || 0.02; // default ±2%
 
 // mongoose schema for market prices (singleton document)
 const marketSchema = new mongoose.Schema({
@@ -46,7 +47,9 @@ async function loadPrices() {
         let base = Math.max(1, STOCK_PRICES[symbol].price * 0.7); // ย้อนหลังให้เริ่มจากราคาต่ำลงนิดหน่อย (หรือสุ่มเอา)
         const hist = [];
         for (let i = 0; i < 29; i++) {
-            base += (Math.random() * VOLATILITY / 2 - VOLATILITY / 4) * base;
+            // apply small percent changes to avoid huge swings on expensive stocks
+            const pct = (Math.random() * VOLATILITY_PERCENT * 2) - VOLATILITY_PERCENT; // ±VOLATILITY_PERCENT
+            base = base + pct * base;
             hist.push(Math.max(1, Math.round(base)));
         }
         hist.push(STOCK_PRICES[symbol].price); // จุดล่าสุดต้องเป็นราคาปัจจุบัน
@@ -93,17 +96,16 @@ async function randomizeStockPrices() {
     for (const symbol in STOCK_PRICES) {
         // use last known price as base so movement accumulates
         const current = STOCK_PRICES[symbol]?.price || STOCK_LIST[symbol].price;
-        // ✅ สุ่มทิศทาง: 50% ขึ้น, 50% ลง
-        const direction = Math.random() < 0.5 ? -1 : 1;
-        // ✅ สุ่มขนาด: 0% ถึง VOLATILITY/2 ของราคาปัจจุบัน
-        const magnitude = Math.random() * (VOLATILITY / 2);
-        const change = direction * magnitude * current;
+        // apply a percent-based volatility change to avoid extreme swings on high-priced stocks
+        const pctChange = (Math.random() * VOLATILITY_PERCENT * 2) - VOLATILITY_PERCENT; // ±VOLATILITY_PERCENT
+        let newPrice = Math.round(current * (1 + pctChange));
 
-        // determine minimum allowed price based on floorFactor
+        // determine minimum allowed price based on floorFactor and absolute minimum floor of 10
         const base = STOCK_LIST[symbol]?.price || current;
-        const floor = Math.max(1, Math.floor(base * floorFactor));
+        const floorByFactor = Math.max(1, Math.floor(base * floorFactor));
+        const absoluteFloor = 10; // hard floor in currency units
+        const floor = Math.max(absoluteFloor, floorByFactor);
 
-        let newPrice = Math.round(current + change);
         if (newPrice < floor) newPrice = floor;
 
         STOCK_PRICES[symbol].price = newPrice;
@@ -163,6 +165,16 @@ const userSchema = new mongoose.Schema({
     stockAvgPrices: { type: Object, default: {} }, // เก็บราคาเฉลี่ยที่ซื้อมา
     popularity: { type: Number, default: 0 },
     donationTotal: { type: Number, default: 0 },
+    // cumulative finance tracking
+    totalOfflineEarned: { type: Number, default: 0 },
+    totalInterestEarned: { type: Number, default: 0 },
+    totalUpkeepPaid: { type: Number, default: 0 },
+    totalWealthTaxPaid: { type: Number, default: 0 },
+    totalLandTaxPaid: { type: Number, default: 0 },
+    totalTransactionTaxesPaid: { type: Number, default: 0 },
+    // history of points over time (used for stats/graphs)
+    pointsHistory: { type: [{ time: Date, points: Number }], default: [] },
+    lastExpenseTime: { type: Date, default: Date.now },  // track 5-min upkeep cycles
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -225,9 +237,16 @@ const ECONOMY_CONFIG = {
     offlineMultiplier: 0.7,         // decay on offline earnings
     offlineHourlyCeilingFactor: 10, // hours worth per hour cap
     wealthThreshold: 100000,        // threshold for upkeep
-    upkeepRatePerHour: 0.002,       // 0.2% per hour
+    upkeepRatePerHour: 0.002,       // 0.2% per hour (applied every 5 min = 0.002/12)
+    upkeepRatePer5Min: 0.002 / 12, // 0.2% / 12 (for 5-min intervals)
     interestRatePerHour: 0.0005,    // 0.05% interest per hour on balance
     transactionTaxRate: 0.01,       // 1% tax on trades/lottery/buy
+
+    // --- New: Wealth tax + Land tax ---
+    wealthTaxThreshold: 1000000,    // ✅ 10% wealth tax for 1M+ points
+    wealthTaxRate: 0.10,            // ✅ 10% per hour for excess wealth
+    businessThresholdForLandTax: 2, // ✅ land tax applies if have 2+ businesses
+    landTaxPerBusinessPerHour: 0.0001, // ✅ 0.01% per business per hour
 
     // --- Stock price floor configuration (fraction of base price) ---
     // early  : beginners – prices can't fall below 50% of starting value
@@ -362,92 +381,84 @@ app.post('/api/stock/trade', async (req, res) => {
         return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบ' });
     }
 
-    const user = await User.findOne({ discordId });
-    if (!user) {
-        console.error('User not found:', discordId);
-        return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้' });
-    }
-
+    // Find stock and validate
     const stock = STOCK_PRICES[symbol];
     if (!stock) {
         console.error('Stock not found:', symbol);
         return res.status(400).json({ success: false, message: 'ไม่พบหุ้นนี้' });
     }
 
-    user.stocks = user.stocks || {};
-    user.stockAvgPrices = user.stockAvgPrices || {};
-
-    // ✅ ดึงค่า quantity จาก request body (ค่าเริ่มต้น 1 ถ้าไม่มี)
+    // quantity handling
     let amount = parseInt(req.body.quantity) || 1;
-
-    // ✅ Validation: จำนวนต้องมากกว่า 0 และเป็นจำนวนเต็มบวก
     if (amount <= 0 || !Number.isInteger(amount)) {
-        console.error('Invalid quantity:', { quantity: req.body.quantity, amount });
         return res.status(400).json({ success: false, message: 'จำนวนต้องเป็นจำนวนเต็มบวก' });
     }
 
-    let tax = 0; // will be set per action
-
-    // ✅ กำหนดขีดจำกัดการซื้อ/ขายต่อครั้ง (ป้องกันการทุจริต)
     const MAX_QUANTITY_PER_TRADE = 10000;
-    if (amount > MAX_QUANTITY_PER_TRADE) {
-        console.error('Quantity exceeds limit:', { amount, max: MAX_QUANTITY_PER_TRADE });
-        return res.status(400).json({ success: false, message: `จำนวนต่อครั้งไม่เกิน ${MAX_QUANTITY_PER_TRADE} หน่วย` });
+    if (amount > MAX_QUANTITY_PER_TRADE) return res.status(400).json({ success: false, message: `จำนวนต่อครั้งไม่เกิน ${MAX_QUANTITY_PER_TRADE} หน่วย` });
+
+    try {
+        if (action === 'buy') {
+            const cost = stock.price * amount;
+            const tax = Math.floor(cost * ECONOMY_CONFIG.transactionTaxRate);
+            const totalWithTax = cost + tax;
+
+            const user = await User.findOne({ discordId });
+            if (!user) return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้' });
+            if ((user.points || 0) < totalWithTax) return res.status(400).json({ success: false, message: 'เงินไม่พอ' });
+
+            user.stocks = user.stocks || {};
+            user.stockAvgPrices = user.stockAvgPrices || {};
+
+            const prevQty = Number(user.stocks[symbol] || 0);
+            const prevAvg = Number(user.stockAvgPrices[symbol] || stock.price);
+            const newQty = prevQty + amount;
+            const newAvg = prevQty > 0 ? Math.round(((prevAvg * prevQty) + cost) / newQty) : stock.price;
+
+            user.points = Math.max(0, (user.points || 0) - totalWithTax);
+            user.totalTransactionTaxesPaid = (user.totalTransactionTaxesPaid || 0) + tax;
+            user.stocks[symbol] = newQty;
+            user.stockAvgPrices[symbol] = newAvg;
+
+            user.markModified('stocks');
+            user.markModified('stockAvgPrices');
+            await user.save();
+
+            return res.json({ success: true, newPoints: user.points, stockQty: user.stocks[symbol], stocks: user.stocks, stockAvgPrices: user.stockAvgPrices, tax });
+        } else if (action === 'sell') {
+            const user = await User.findOne({ discordId });
+            if (!user) return res.status(404).json({ success: false, message: 'ไม่พบผู้ใช้' });
+
+            user.stocks = user.stocks || {};
+            user.stockAvgPrices = user.stockAvgPrices || {};
+
+            const owned = Number(user.stocks[symbol] || 0);
+            if (owned < amount) return res.status(400).json({ success: false, message: 'จำนวนหุ้นไม่พอ' });
+
+            const revenue = stock.price * amount;
+            const tax = Math.floor(revenue * ECONOMY_CONFIG.transactionTaxRate);
+            const net = revenue - tax;
+
+            user.points = (user.points || 0) + net;
+            user.totalTransactionTaxesPaid = (user.totalTransactionTaxesPaid || 0) + tax;
+            user.stocks[symbol] = owned - amount;
+            if (user.stocks[symbol] <= 0) {
+                delete user.stocks[symbol];
+                delete user.stockAvgPrices[symbol];
+            }
+
+            user.markModified('stocks');
+            user.markModified('stockAvgPrices');
+            await user.save();
+
+            return res.json({ success: true, newPoints: user.points, stockQty: user.stocks[symbol] || 0, stocks: user.stocks, stockAvgPrices: user.stockAvgPrices, tax });
+        } else {
+            return res.status(400).json({ success: false, message: 'action ไม่ถูกต้อง' });
+        }
+    } catch (err) {
+        console.error('Trade error', err && err.stack ? err.stack : err);
+        return res.status(500).json({ success: false, message: 'Internal error' });
     }
-
-    if (action === 'buy') {
-        const cost = stock.price * amount;
-        tax = Math.floor(cost * ECONOMY_CONFIG.transactionTaxRate);
-        if (user.points < cost + tax) {
-            console.error('Insufficient points:', { userPoints: user.points, cost, tax });
-            return res.status(400).json({ success: false, message: 'เงินไม่พอ' });
-        }
-
-        // DCA calculation
-        const prevQty = user.stocks[symbol] || 0;
-        const prevAvg = user.stockAvgPrices[symbol] || stock.price;
-        const totalOldCost = prevQty * prevAvg;
-        const newCost = cost;
-        user.stockAvgPrices[symbol] = (totalOldCost + newCost) / (prevQty + amount);
-
-        user.points -= cost + tax;
-        user.stocks[symbol] = prevQty + amount;
-
-        user.markModified('stocks');
-        user.markModified('stockAvgPrices');
-        console.log('Buy successful:', { symbol, amount, newPoints: user.points, tax });
-    } else if (action === 'sell') {
-        if (!user.stocks[symbol] || user.stocks[symbol] < amount) {
-            const ownedAmt = user.stocks[symbol] || 0;
-            console.error('Insufficient stock:', { symbol, owned: ownedAmt, amount });
-            return res.status(400).json({
-                success: false,
-                message: 'ไม่มีหุ้นนี้ในพอร์ตหรือจำนวนไม่พอ',
-                details: { symbol, owned: ownedAmt, requested: amount }
-            });
-        }
-        const revenue = stock.price * amount;
-        tax = Math.floor(revenue * ECONOMY_CONFIG.transactionTaxRate);
-        user.points += revenue - tax;
-        user.stocks[symbol] -= amount;
-        if (user.stocks[symbol] <= 0) {
-            delete user.stocks[symbol];
-            delete user.stockAvgPrices[symbol];
-        }
-        user.markModified('stocks');
-        user.markModified('stockAvgPrices');
-        console.log('Sell successful:', { symbol, amount, newPoints: user.points, tax });
-    } else {
-        console.error('Invalid action:', action);
-        return res.status(400).json({ success: false, message: 'action ไม่ถูกต้อง' });
-    }
-    await user.save();
-
-    // ✅ ส่งจำนวนหุ้นปัจจุบัน (หรือ 0 ถ้าขายหมดแล้ว)
-    const stockQty = user.stocks[symbol] || 0;
-    const responseObj = { success: true, newPoints: user.points, stockQty, stocks: user.stocks, stockAvgPrices: user.stockAvgPrices, tax: tax ?? 0 };
-    console.log('Trade response being sent:', responseObj);
-    res.json(responseObj);
 });
 
 
@@ -490,6 +501,8 @@ app.get('/api/auth/callback', async (req, res) => {
                 BTC: 10,  // เริ่มต้นด้วย 10 Bitcoin
                 ETH: 50   // เริ่มต้นด้วย 50 Ethereum
             };
+            // start history with zero points
+            updateData.pointsHistory = [{ time: Date.now(), points: 0 }];
         }
 
         const user = await User.findOneAndUpdate(
@@ -510,12 +523,17 @@ app.get('/api/user/:discordId', async (req, res) => {
 
         // คำนวณรายได้ออฟไลน์ (anti-inflation safeguards)
         const now = new Date();
+        const nowTime = now.getTime();
         const lastLoginTime = user.lastLogin ? new Date(user.lastLogin).getTime() : now.getTime();
         const diffSeconds = Math.max(0, Math.floor((now.getTime() - lastLoginTime) / 1000));
 
         let offlineEarnings = 0;
         let interestGain = 0;
         let upkeepDeduct = 0;
+        let wealthTax = 0;
+        let landTax = 0;
+        let nextUpkeepMs = 0;  // calculate next upkeep cycle time
+
         // ถ้าออฟไลน์ไปเกิน 5 วินาทีและมีรายได้ ให้คำนวณย้อนหลัง
         if (diffSeconds > 5 && finalPPS > 0) {
             const cappedSeconds = Math.min(diffSeconds, ECONOMY_CONFIG.offlineMaxHours * 3600);
@@ -532,19 +550,59 @@ app.get('/api/user/:discordId', async (req, res) => {
             // interest gain on balance
             interestGain = Math.floor(user.points * ECONOMY_CONFIG.interestRatePerHour * elapsedHours);
             user.points += offlineEarnings + interestGain;
+            user.totalOfflineEarned = (user.totalOfflineEarned || 0) + offlineEarnings;
+            user.totalInterestEarned = (user.totalInterestEarned || 0) + interestGain;
 
-            // wealth upkeep tax
+            // wealth upkeep tax (every 5 minutes)
             if (user.points > ECONOMY_CONFIG.wealthThreshold) {
                 const excess = user.points - ECONOMY_CONFIG.wealthThreshold;
-                upkeepDeduct = Math.floor(excess * ECONOMY_CONFIG.upkeepRatePerHour * elapsedHours);
-                const maxUpkeep = Math.floor(excess * 0.5);
-                if (upkeepDeduct > maxUpkeep) upkeepDeduct = maxUpkeep;
-                if (upkeepDeduct > 0) user.points = Math.max(0, user.points - upkeepDeduct);
+                // calculate how many 5-minute cycles have passed
+                const lastExpenseTime = user.lastExpenseTime ? new Date(user.lastExpenseTime).getTime() : nowTime - (5*60*1000);
+                const millisSinceLastExpense = Math.max(0, nowTime - lastExpenseTime);
+                const cycles = Math.floor(millisSinceLastExpense / (5*60*1000));
+                if (cycles >= 1) {
+                    upkeepDeduct = Math.floor(excess * ECONOMY_CONFIG.upkeepRatePer5Min * cycles);
+                    const maxUpkeep = Math.floor(excess * 0.5);
+                    if (upkeepDeduct > maxUpkeep) upkeepDeduct = maxUpkeep;
+                    if (upkeepDeduct > 0) {
+                        user.points = Math.max(0, user.points - upkeepDeduct);
+                        user.totalUpkeepPaid = (user.totalUpkeepPaid || 0) + upkeepDeduct;
+                        user.lastExpenseTime = now;  // update timestamp
+                    }
+                }
+                // calculate next upkeep cycle time
+                if (user.points > ECONOMY_CONFIG.wealthThreshold) {
+                    nextUpkeepMs = (user.lastExpenseTime ? new Date(user.lastExpenseTime).getTime() : nowTime) + (5*60*1000);
+                }
+            }
+
+            // ✅ wealth tax: 10% per hour for points >= 1M
+            if (user.points >= ECONOMY_CONFIG.wealthTaxThreshold) {
+                const excessWealth = user.points - ECONOMY_CONFIG.wealthTaxThreshold;
+                wealthTax = Math.floor(excessWealth * ECONOMY_CONFIG.wealthTaxRate * elapsedHours);
+                user.points = Math.max(0, user.points - wealthTax);
+                user.totalWealthTaxPaid = (user.totalWealthTaxPaid || 0) + wealthTax;
+            }
+
+            // ✅ land tax: per business if have 2+ businesses
+            const businessCount = user.upgradeCounts ? Object.keys(user.upgradeCounts).length : 0;
+            if (businessCount >= ECONOMY_CONFIG.businessThresholdForLandTax) {
+                landTax = Math.floor(user.points * ECONOMY_CONFIG.landTaxPerBusinessPerHour * businessCount * elapsedHours);
+                user.points = Math.max(0, user.points - landTax);
+                user.totalLandTaxPaid = (user.totalLandTaxPaid || 0) + landTax;
             }
         }
 
         // อัปเดตเวลาล่าสุด
         user.lastLogin = now;
+        // record a history point when offline earnings/taxes were applied
+        try {
+            user.pointsHistory = user.pointsHistory || [];
+            user.pointsHistory.push({ time: now, points: user.points });
+            if (user.pointsHistory.length > 100) user.pointsHistory.shift();
+        } catch (e) {
+            console.error('history push error', e);
+        }
         await user.save();
 
         // ส่งข้อมูลผู้เล่นพร้อมสถิติคู่แข่ง และ portfolio หุ้น
@@ -559,7 +617,17 @@ app.get('/api/user/:discordId', async (req, res) => {
             marketStage,                     // ส่ง stage ให้หน้า UI
             offlineEarnings: offlineEarnings, // ส่งข้อมูลไปให้ Client แสดง Alert
             interestGain: interestGain,
-            upkeepDeduct: upkeepDeduct
+            upkeepDeduct: upkeepDeduct,
+            nextUpkeepMs: nextUpkeepMs,      // timestamp when next 5-min deduction occurs
+            wealthTax: wealthTax,            // ✅ ส่งภาษีความมั่งคั่ง
+            landTax: landTax,                // ✅ ส่งภาษีที่ดิน
+            // cumulative totals for finance page
+            totalOfflineEarned: user.totalOfflineEarned || 0,
+            totalInterestEarned: user.totalInterestEarned || 0,
+            totalUpkeepPaid: user.totalUpkeepPaid || 0,
+            totalWealthTaxPaid: user.totalWealthTaxPaid || 0,
+            totalLandTaxPaid: user.totalLandTaxPaid || 0,
+            totalTransactionTaxesPaid: user.totalTransactionTaxesPaid || 0
         });
     } catch (err) { res.status(500).send(err); }
 });
@@ -589,6 +657,7 @@ app.post('/api/buy', async (req, res) => {
 
         // apply transaction tax
         const tax = Math.floor(totalCost * ECONOMY_CONFIG.transactionTaxRate);
+        user.totalTransactionTaxesPaid = (user.totalTransactionTaxesPaid || 0) + tax;
         const totalWithTax = totalCost + tax;
         if (user.points < totalWithTax) {
             return res.status(400).json({ success: false, message: `เงินไม่พอ (ต้องมีอย่างน้อย ฿${totalWithTax.toLocaleString()} รวมค่าธรรมเนียม)` });
@@ -636,6 +705,7 @@ app.post('/api/lottery', async (req, res) => {
 
         // apply tax on winnings
         const tax = Math.floor(result.amount * ECONOMY_CONFIG.transactionTaxRate);
+        user.totalTransactionTaxesPaid = (user.totalTransactionTaxesPaid || 0) + tax;
         const netAmount = result.amount - tax;
         if (netAmount > 0) user.points += netAmount;
         await user.save();
@@ -702,9 +772,14 @@ app.post('/api/save', async (req, res) => {
             updateFields.points = serverUser.points;
         }
 
+        // prepare history entry for save operation as well
+        const historyEntry = { time: nowMs, points: updateFields.points };
         const updatedUser = await User.findOneAndUpdate(
             { discordId: discordId },
-            { $set: updateFields },
+            {
+                $set: updateFields,
+                $push: { pointsHistory: { $each: [historyEntry], $slice: -100 } }
+            },
             { returnDocument: 'after' }
         );
 
@@ -730,7 +805,7 @@ app.get('/api/leaderboard', async (req, res) => {
         const topPlayers = await User.find()
             .sort({ points: -1 })
             .limit(10)
-            .select('username points avatar discordId popularity');
+            .select('username points avatar discordId popularity lastLogin');
         res.json(topPlayers);
     } catch (err) { res.status(500).json({ success: false }); }
 });
