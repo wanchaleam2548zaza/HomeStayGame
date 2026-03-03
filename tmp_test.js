@@ -1,0 +1,1 @@
+const {randomizeStockPrices,STOCK_PRICES,STOCK_LIST} = require('./server.js');\nconst mongoose=require('mongoose');\n(async()=>{\n await mongoose.connect(process.env.MONGO_URI||'');\n for(let i=0;i<5;i++){\n   await randomizeStockPrices();\n   console.log('after',STOCK_PRICES.BTC.price,'floor',Math.floor(STOCK_LIST.BTC.price*0.25));\n }\n process.exit(0);\n})();
