@@ -719,6 +719,34 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
 
+        /* finance stats chart */
+        #finance-chart {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 18px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            background: var(--card);
+        }
+
+        .stat-block {
+            margin-bottom: 16px;
+        }
+        .stat-block p {
+            margin: 4px 0 6px 0;
+            font-weight: 600;
+        }
+        .stat-row {
+            margin-left: 12px;
+            line-height: 1.4;
+        }
+
+        /* improve nav button hover */
+        .nav-btn:hover {
+            color: var(--text-main);
+            transform: translateY(-1px);
+        }
+
         /* --- Stock Graph Modal Styles --- */
         .stock-graph-modal {
             width: 90vw;
@@ -890,6 +918,7 @@
             <div class="card-label">TOTAL CAPITAL | ผู้ลงทุน: <span id="display-name">...</span></div>
             <div id="points">฿0</div>
             <div class="profit-text" id="pps">Profit: +฿0/s</div>
+            <div id="upkeep-countdown" style="font-size:0.85rem; color: #ffdd99; margin-top:8px;">⏳ ถัดไป: -</div>
             <div style="font-size: 0.85rem; color: #f1c40f; margin-top: 5px; font-weight: 600;">🌟 ความนิยม: <span
                     id="display-popularity">0</span> <small
                     style="font-weight:normal; color:rgba(255,255,255,0.6);">(ยอดบริจาคสะสม <span
@@ -1095,14 +1124,29 @@
             </div>
         </div>
 
+        <div id="tab-finance" class="tab-content">
+            <div class="category-title">รายรับ / รายจ่าย</div>
+            <div id="finance-content" style="padding:20px; font-size:0.9rem; color:var(--text-main);">
+                <div id="finance-chart"></div>
+                <p>กำลังโหลดข้อมูล...</p>
+            </div>
+        </div>
+
         <div id="tab-settings" class="tab-content">
             <div class="category-title">ตั้งค่าระบบ</div>
             <div class="biz-card" style="padding: 20px; flex-direction: column; gap: 15px;">
                 <strong>📊 ข้อมูลเศรษฐกิจ</strong>
                 <p id="econ-info" style="margin:4px 0; font-size:0.85rem; color:var(--text-dim);">
-                    • อัตราดอกเบี้ย: 0.05%/ชั่วโมง (ยอดเงินทั้งหมด)<br>
+                    <strong style="color: var(--accent);">💰 รายได้:</strong><br>
+                    • ดอกเบี้ย: 0.05%/ชั่วโมง (ยอดเงินทั้งหมด)<br>
+                    <br>
+                    <strong style="color: var(--danger);">📋 ค่าใช้จ่าย:</strong><br>
                     • ค่าบำรุง: 0.2%/ชั่วโมง (เฉพาะส่วนเกิน ฿100,000)<br>
-                    • ค่าธรรมเนียมธุรกรรม: 1% การซื้อ-ขาย-ล็อตเตอรี่<br>
+                    • ภาษีความมั่งคั่ง 💳: 10%/ชั่วโมง (เงิน > ฿1,000,000)<br>
+                    • ภาษีที่ดิน 🏛️: 0.01% ต่อธุรกิจ/ชั่วโมง (ธุรกิจ >= 2 แห่ง)<br>
+                    • ค่าธรรมเนียมธุรกรรม: 1% (ซื้อ-ขาย-ล็อตเตอรี่)<br>
+                    <br>
+                    <strong style="color: #f1c40f;">🏪 ลงทุน:</strong><br>
                     • ต้นทุนเพิ่ม: 15% ต่อหน่วยที่มีแล้วในร้านค้า<br>
                     • เฟสตลาด: <span id="market-stage-label">กำลังโหลด...</span>
                 </p>
@@ -1120,6 +1164,7 @@
             <button class="nav-btn" onclick="switchTab('tab-stocks', this)">📈<br>หุ้น</button>
             <button class="nav-btn" onclick="switchTab('tab-shop', this)">🏢<br>ลงทุน</button>
             <button class="nav-btn" onclick="switchTab('tab-leaderboard', this)">🏆<br>อันดับ</button>
+            <button class="nav-btn" onclick="switchTab('tab-finance', this)">💼<br>การเงิน</button>
             <button class="nav-btn" onclick="switchTab('tab-settings', this)">⚙️<br>ตั้งค่า</button>
         </nav>
     </div>
@@ -1248,6 +1293,9 @@
         let stocksRendered = false; // track whether we already built the DOM
         let isProcessing = false;
         let discordId = "";
+        let nextUpkeepMs = 0; // server-sent timestamp for next 5-min upkeep
+        let userPollIntervalId = null;
+        const USER_POLL_MS = 5000; // 5s polling for realtime totals
         // history for sparklines
         let stockHistories = {}; // symbol -> array of prices
         let stockLoading = {}; // per-symbol loading state for buy/sell buttons
@@ -1296,11 +1344,13 @@
                 currentStockPrices = user.currentStockPrices || {}; // [NEW] โหลดราคาตลาดล่าสุด
                 stocksRendered = false; // เคลียร์ flag เวลากดรีโหลดหรือเข้ามาใหม่
 
-                // show modal with offline earnings breakdown
+                // show modal with offline earnings breakdown (including new taxes)
                 if (user.offlineEarnings && user.offlineEarnings > 0) {
-                    let msg = `คุณได้รับ ฿${Math.floor(user.offlineEarnings).toLocaleString()} ขณะออฟไลน์`;
-                    if (user.interestGain) msg += `\n(ดอกเบี้ย +฿${user.interestGain.toLocaleString()})`;
-                    if (user.upkeepDeduct) msg += `\n(ค่าบำรุง -฿${user.upkeepDeduct.toLocaleString()})`;
+                    let msg = `💰 รายได้ออฟไลน์: +฿${Math.floor(user.offlineEarnings).toLocaleString()}\n`;
+                    if (user.interestGain) msg += `📈 ดอกเบี้ย: +฿${user.interestGain.toLocaleString()}\n`;
+                    if (user.upkeepDeduct) msg += `🏢 ค่าบำรุง: -฿${user.upkeepDeduct.toLocaleString()}\n`;
+                    if (user.wealthTax) msg += `💳 ภาษีความมั่งคั่ง (10%): -฿${user.wealthTax.toLocaleString()}\n`;
+                    if (user.landTax) msg += `🏛️ ภาษีที่ดิน: -฿${user.landTax.toLocaleString()}\n`;
                     document.getElementById('offline-earnings-amount').innerText = msg.replace(/\n/g,' ');
                     document.getElementById('modal-offline-earnings').style.display = 'flex';
                 }
@@ -1314,6 +1364,8 @@
                 await fetchUserData();
                 await updateStockUI(); // [FIX] ต้อง await เพื่อให้ currentStockPrices load ก่อน
                 updateUI();
+                // start realtime polling to keep totals in sync
+                try { startUserRealtimePoll(); } catch (e) { console.warn('startUserRealtimePoll failed', e); }
                 updateStarterGrid(); // [NEW] Update competitor counts on starter screen
 
                 // If user holds any stocks, show the first one on the candlestick chart
@@ -1355,6 +1407,7 @@
                     popularity = user.popularity || 0;
                     donationTotal = user.donationTotal || 0;
                     currentStockPrices = user.currentStockPrices || {};
+                    nextUpkeepMs = user.nextUpkeepMs || 0;
 
                     // offline earnings modal rebuilt
                     if (user.offlineEarnings && user.offlineEarnings > 0) {
@@ -1372,6 +1425,21 @@
             }
         }
 
+        function startUserRealtimePoll() {
+            try { stopUserRealtimePoll(); } catch (e) {}
+            if (!discordId) return;
+            userPollIntervalId = setInterval(async () => {
+                try {
+                    await fetchUserData();
+                    updateUI();
+                } catch (e) { console.error('user poll error', e); }
+            }, USER_POLL_MS);
+        }
+
+        function stopUserRealtimePoll() {
+            if (userPollIntervalId) { clearInterval(userPollIntervalId); userPollIntervalId = null; }
+        }
+
         function updateUI() {
             const pointsDisplay = document.getElementById('points');
             if (pointsDisplay) pointsDisplay.innerText = `฿${Math.floor(points).toLocaleString()}`;
@@ -1384,6 +1452,19 @@
 
             const donDisplay = document.getElementById('display-donation');
             if (donDisplay) donDisplay.innerText = donationTotal.toLocaleString();
+
+            // countdown for next upkeep cycle
+            const countdownEl = document.getElementById('upkeep-countdown');
+            if (countdownEl) {
+                if (nextUpkeepMs && nextUpkeepMs > Date.now()) {
+                    const sec = Math.max(0, Math.floor((nextUpkeepMs - Date.now())/1000));
+                    const m = Math.floor(sec/60);
+                    const s = sec%60;
+                    countdownEl.innerText = `⏳ ถัดไป: ${m}m ${s}s`;
+                } else {
+                    countdownEl.innerText = '⏳ ถัดไป: -';
+                }
+            }
 
             // update market stage label if available
             const stageLabel = document.getElementById('market-stage-label');
@@ -1973,6 +2054,26 @@
             stockLoading[symbol] = true;
             updateStockButtons(symbol);
 
+            // optimistic UI update for buy: deduct points and increment owned immediately
+            const prevPoints = points;
+            const prevOwned = userStocks[symbol] || 0;
+            let didOptimistic = false;
+            if (action === 'buy') {
+                const stockPrice = (currentStockPrices && currentStockPrices[symbol] && currentStockPrices[symbol].price) || 0;
+                const cost = stockPrice * quantity;
+                const taxCost = Math.floor(cost * TRANSACTION_TAX_RATE);
+                const totalCost = cost + taxCost;
+                // only apply optimistic change if we appear to have enough points locally
+                if (points >= totalCost) {
+                    points = Math.max(0, Math.floor(points - totalCost));
+                    userStocks[symbol] = prevOwned + quantity;
+                    if (document.getElementById('points')) document.getElementById('points').innerText = `฿${Math.floor(points).toLocaleString()}`;
+                    renderOwnedStocks();
+                    updateStockButtons(symbol);
+                    didOptimistic = true;
+                }
+            }
+
             isProcessing = true; // still block global actions if needed
 
             try {
@@ -1993,6 +2094,14 @@
                 if (!res.ok) {
                     console.error('HTTP Error:', res.status, data);
                     alert(data.message || `เกิดข้อผิดพลาด: ${res.status}`);
+                    // rollback optimistic if applied
+                    if (didOptimistic) {
+                        points = prevPoints;
+                        userStocks[symbol] = prevOwned;
+                        if (document.getElementById('points')) document.getElementById('points').innerText = `฿${Math.floor(points).toLocaleString()}`;
+                        renderOwnedStocks();
+                        updateStockButtons(symbol);
+                    }
                     return;
                 }
 
@@ -2032,6 +2141,14 @@
                     // log details if provided
                     if (data.details) console.warn('stock details:', data.details);
                     alert(data.message || "การเทรดล้มเหลว");
+                    // rollback optimistic if applied
+                    if (didOptimistic) {
+                        points = prevPoints;
+                        userStocks[symbol] = prevOwned;
+                        if (document.getElementById('points')) document.getElementById('points').innerText = `฿${Math.floor(points).toLocaleString()}`;
+                        renderOwnedStocks();
+                        updateStockButtons(symbol);
+                    }
                 }
             } catch (e) {
                 console.error("Trade Error:", e);
@@ -2164,6 +2281,7 @@
                 }
             }
             if (tabId === 'tab-leaderboard') loadLeaderboard();
+            if (tabId === 'tab-finance') loadFinance();
         }
 
         async function loadLeaderboard() {
@@ -2180,12 +2298,20 @@
                         ? `https://cdn.discordapp.com/avatars/${p.discordId}/${p.avatar}.png`
                         : 'https://cdn.discordapp.com/embed/avatars/0.png';
 
+                    // ✅ ตรวจสอบ online/offline status ให้เข้มงวด (3 นาถือว่า online)
+                    const lastLoginTime = p.lastLogin ? new Date(p.lastLogin).getTime() : 0;
+                    const nowTime = Date.now();
+                    const minutesSinceLogin = Math.floor((nowTime - lastLoginTime) / 60000);
+                    const isOnline = minutesSinceLogin < 3;  // ✅ 3 นาที threshold
+                    const statusText = isOnline ? '🟢 ออนไลน์' : '⚪ ออฟไลน์';
+                    const statusColor = isOnline ? '#00ff88' : '#888';
+
                     // กำหนดสีตามลำดับ 1, 2, 3
                     let rankColor = 'var(--text-dim)';
                     let rankIcon = '';
                     if (i === 0) { rankColor = '#FFD700'; rankIcon = '🥇'; }
                     else if (i === 1) { rankColor = '#C0C0C0'; rankIcon = '🥈'; }
-                    else if (p.i === 2) { rankColor = '#CD7F32'; rankIcon = '🥉'; }
+                    else if (i === 2) { rankColor = '#CD7F32'; rankIcon = '🥉'; }
 
                     return `
                 <div class="leaderboard-item" style="${isMe ? 'border: 1px solid var(--secondary); background: rgba(212, 175, 55, 0.08);' : ''}">
@@ -2195,13 +2321,13 @@
                         </div>
                         <div style="position: relative;">
                             <img src="${avatarUrl}" style="width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: block;">
-                            ${isMe ? '<div style="position:absolute; bottom:-4px; right:-4px; background:var(--secondary); width:12px; height:12px; border-radius:50%; border:2px solid var(--bg);"></div>' : ''}
+                            ${isOnline ? '<div style="position:absolute; bottom:-4px; right:-4px; background:#00ff88; width:12px; height:12px; border-radius:50%; border:2px solid var(--bg);"></div>' : '<div style="position:absolute; bottom:-4px; right:-4px; background:#666; width:12px; height:12px; border-radius:50%; border:2px solid var(--bg);"></div>'}
                         </div>
                         <div style="display: flex; flex-direction: column;">
                             <span style="font-weight: 600; font-size: 0.95rem; color: ${isMe ? 'var(--secondary)' : 'var(--text-main)'};">
                                 ${p.username} ${isMe ? '<small style="font-weight:normal; opacity:0.7;">(คุณ)</small>' : ''}
                             </span>
-                            <small style="color: var(--text-dim); font-size: 0.75rem;">ID: ${p.discordId.substring(0, 8)}...</small>
+                            <small style="color: ${statusColor}; font-size: 0.75rem;">${statusText}</small>
                         </div>
                     </div>
                     <div style="text-align: right;">
@@ -2211,12 +2337,74 @@
                     </div>
                 </div>`;
                 }).join('');
-
             } catch (e) {
-                list.innerHTML = '<div style="text-align:center; padding:30px; color:var(--danger);">❌ โหลดข้อมูลไม่สำเร็จ</div>';
+                list.innerHTML = '<div style="text-align:center;color:var(--danger);">ไม่สามารถโหลดข้อมูลได้</div>';
+                console.error('Leaderboard load error', e);
             }
         }
-        // --- 3.9 ฟังก์ชันบริจาค (Donate) ---
+
+        async function loadFinance() {
+            const container = document.getElementById('finance-content');
+            if (!container) return;
+            container.innerHTML = '<p style="text-align:center; padding:30px; color:var(--text-dim);">⏳ กำลังโหลดข้อมูลทางการเงิน...</p>';
+            try {
+                const res = await fetch(`/api/user/${discordId}`);
+                if (!res.ok) throw new Error('ไม่สามารถดึงข้อมูล');
+                const u = await res.json();
+
+                // render chart container plus text summary
+                container.innerHTML = `
+                    <div id="finance-chart"></div>
+                    <div class="stat-block">
+                        <p>💰 รายได้สะสม</p>
+                        <div class="stat-row">🕒 ออฟไลน์ทั้งหมด: ฿${Math.floor(u.totalOfflineEarned||0).toLocaleString()}</div>
+                        <div class="stat-row">💹 ดอกเบี้ยทั้งหมด: ฿${Math.floor(u.totalInterestEarned||0).toLocaleString()}</div>
+                    </div>
+                    <div class="stat-block">
+                        <p>📋 ค่าใช้จ่ายสะสม</p>
+                        <div class="stat-row">🛠️ ค่าบำรุงทั้งหมด: ฿${Math.floor(u.totalUpkeepPaid||0).toLocaleString()}</div>
+                        <div class="stat-row">💳 ภาษีความมั่งคั่ง: ฿${Math.floor(u.totalWealthTaxPaid||0).toLocaleString()}</div>
+                        <div class="stat-row">🏛️ ภาษีที่ดิน: ฿${Math.floor(u.totalLandTaxPaid||0).toLocaleString()}</div>
+                        <div class="stat-row">💸 ค่าธรรมเนียมธุรกรรม: ฿${Math.floor(u.totalTransactionTaxesPaid||0).toLocaleString()}</div>
+                    </div>
+                `;
+
+                // chart history if available
+                if (u.pointsHistory && u.pointsHistory.length > 1) {
+                    setTimeout(() => {
+                        const chartDiv = document.getElementById('finance-chart');
+                        if (!chartDiv) return;
+                        try {
+                            chartDiv.innerHTML = '';
+                            const chart = LightweightCharts.createChart(chartDiv, {
+                                width: chartDiv.offsetWidth || 300,
+                                height: 180,
+                                layout: {
+                                    background: { color: 'transparent' },
+                                    textColor: '#a0a0a0'
+                                },
+                                timeScale: { timeVisible: true, secondsVisible: false }
+                            });
+                            const lineSeries = chart.addLineSeries({
+                                color: '#00ff88',
+                                lineWidth: 2
+                            });
+                            const data = u.pointsHistory.map(h => ({
+                                time: Math.floor(new Date(h.time).getTime() / 1000),
+                                value: Math.floor(h.points || 0)
+                            }));
+                            lineSeries.setData(data);
+                            chart.timeScale().fitContent();
+                        } catch (chartErr) {
+                            console.error('Chart error:', chartErr);
+                        }
+                    }, 100);
+                }
+            } catch (e) {
+                container.innerHTML = '<p style="color:var(--danger);">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>';
+                console.error('loadFinance error', e);
+            }
+        }        // --- 3.9 ฟังก์ชันบริจาค (Donate) ---
         async function donateMoney() {
             if (isProcessing) return;
 
@@ -2348,6 +2536,11 @@
             }
         }, 100);
 
+        // countdown tick every second
+        setInterval(() => {
+            if (nextUpkeepMs) updateUI();
+        }, 1000);
+
         // เซฟความก้าวหน้าและอัปเดตราคาหุ้นทุก 10 วินาที
         setInterval(() => {
             if (discordId && pps > 0 && !isProcessing) {
@@ -2395,6 +2588,25 @@
             }
         });
 
+        // ✅ Auto-save before page unload (refresh/close) to prevent currency loss
+        window.addEventListener('beforeunload', () => {
+            if (discordId && pps >= 0) {
+                const saveData = {
+                    discordId,
+                    points,
+                    stocks: userStocks,
+                    pointsPerSecond: pps
+                };
+                // Use keepalive to ensure the request completes even if page closes immediately
+                fetch('/api/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(saveData),
+                    keepalive: true
+                }).catch(() => {}); // ignore errors on page unload
+            }
+        });
+
         window.onload = loadData;
     </script>
     <!-- Lightweight Charts (candlestick) -->
@@ -2424,13 +2636,14 @@
             let currentSymbol = 'BTC';
             let lastTimestamp = 0;
             let pollIntervalId = null;
+            const POLL_MS = 30000; // default polling interval for server-friendly load (30s)
 
             async function fetchOHLC(symbol) {
                 try {
                     const resp = await fetch(`/api/stock/ohlc/${encodeURIComponent(symbol)}?range=1d&interval=5m`);
                     if (!resp.ok) throw new Error('Fetch failed');
                     const json = await resp.json();
-                    if (!json || !json.data) return [];
+                    if (!json || !json.data) return generateMockOHLC(symbol);
 
                     let data = json.data.map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close }));
 
@@ -2456,8 +2669,32 @@
                     return data;
                 } catch (err) {
                     console.error('fetchOHLC error', err);
-                    return [];
+                    // ✅ Fallback: generate mock OHLC from game's stock history
+                    return generateMockOHLC(symbol);
                 }
+            }
+
+            // ✅ Generate mock OHLC candles from game's current price + random walk
+            function generateMockOHLC(symbol) {
+                const gamePrice = currentStockPrices?.[symbol]?.price || 1000;
+                const now = Math.floor(Date.now() / 1000);
+                const candles = [];
+                let price = gamePrice * 0.95; // start 5% lower
+
+                // Generate 24 candles (5-min intervals = 2 hours of data)
+                for (let i = 0; i < 24; i++) {
+                    const time = now - (24 - i) * 300; // 300s = 5 min
+                    const volatility = (Math.random() - 0.5) * price * 0.04; // ±2% swing
+                    const open = Math.round(price);
+                    const close = Math.round(price + volatility);
+                    const high = Math.round(Math.max(open, close) * (1 + Math.random() * 0.02));
+                    const low = Math.round(Math.min(open, close) * (1 - Math.random() * 0.02));
+
+                    candles.push({ time, open, high, low, close });
+                    price = close;
+                }
+
+                return candles;
             }
 
             // Lazy initialize chart when detail tab is shown and container has proper dimensions
@@ -2469,9 +2706,17 @@
                     return;
                 }
                 try {
+                    // remove any existing chart instance to avoid leaks / duplicate renders
+                    if (charts.detail && charts.detail.ch && typeof charts.detail.ch.remove === 'function') {
+                        try { charts.detail.ch.remove(); } catch (e) { console.warn('failed to remove existing chart', e); }
+                        charts.detail = null;
+                        chartInitialized = false;
+                    }
                     charts.detail = createChart(detailContainer, 360);
                     chartInitialized = true;
                     loadAndRender(currentSymbol);
+                    // start polling for updates at server-friendly interval
+                    try { startPolling(currentSymbol); } catch (e) { console.warn('startPolling failed', e); }
                     console.log('Chart initialized successfully');
                 } catch (err) {
                     console.error('Chart init error:', err);
@@ -2514,12 +2759,19 @@
                 } catch (err) { console.error('pollLatest error', err); }
             }
 
-            // Start polling (safeguard: will do nothing if chart not initialized)
-            pollIntervalId = setInterval(() => { pollLatest(currentSymbol); }, 5000);
+            // polling helper: clear old interval then start new one
+            function startPolling(symbol) {
+                if (pollIntervalId) {
+                    try { clearInterval(pollIntervalId); } catch (e) {}
+                    pollIntervalId = null;
+                }
+                if (!symbol) return;
+                pollIntervalId = setInterval(() => { pollLatest(symbol); }, POLL_MS);
+            }
 
             window.addEventListener('resize', function () {
-                if (chartInitialized && charts.detail) {
-                    charts.detail.ch.resize(detailContainer.clientWidth, 360);
+                if (chartInitialized && charts.detail && charts.detail.ch) {
+                    try { charts.detail.ch.resize(detailContainer.clientWidth, 360); } catch (e) { console.error('resize error', e); }
                 }
             });
 
@@ -2531,6 +2783,8 @@
                     try {
                         currentSymbol = sym;
                         ensureChartInit();
+                        // clear and restart polling for this symbol (less aggressive)
+                        startPolling(currentSymbol);
                         setTimeout(() => loadAndRender(currentSymbol), 150);
                     } catch (err) { console.error('chart switch error', err); }
                 };
